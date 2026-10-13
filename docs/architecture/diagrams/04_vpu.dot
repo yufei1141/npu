@@ -1,0 +1,43 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.25",nodesep="0.35",ranksep="0.55",fontname="DejaVu Sans"];
+node [shape=box,style="rounded,filled",fillcolor="#eaf2ff",color="#6482a6",fontname="DejaVu Sans",fontsize=11,margin="0.15,0.1"];
+edge [fontname="DejaVu Sans",fontsize=9,color="#36546c",arrowsize=0.7];
+cmd [label="VpuCmd queue
+OpController / phase FSM",fillcolor="#fff2d9"];
+read [label="VectorReadEngine
+Bank checks / BF16 -> FP32",fillcolor="#e5f5ed"];
+align [label="OperandAligner
+Chunk scratch / bypass FIFOs",fillcolor="#e5f5ed"];
+mul [label="MUL32
+FP32",fillcolor="#eaf2ff"];
+add [label="ADD / compare / select32",fillcolor="#eaf2ff"];
+reduce [label="SegmentReducer32
+SUM / MAX / ARGMAX
+Partial store + final reduction",fillcolor="#eaf2ff"];
+sfu [label="SFU32 shared request array
+EXP / RECIP / RSQRT",fillcolor="#eaf2ff"];
+scalar [label="ScalarUnit / registers
+eps, r, alpha, m, l",fillcolor="#fff2d9"];
+write [label="Cast / VectorWriteEngine
+BF16 or FP32 + write ACK",fillcolor="#e5f5ed"];
+acu [label="Acu resource requests
+Score / probability / online state",fillcolor="#fff2d9"];
+cmd -> read [label="Addresses / phases",style=dashed,color="#936238"];
+read -> align [label="VecBeat32",color="#326b70",penwidth=1.4];
+align -> mul [label="",color="#326b70",penwidth=1.4];
+align -> add [label="",color="#326b70",penwidth=1.4];
+align -> sfu [label="",color="#326b70",penwidth=1.4];
+mul -> reduce [label="Squares / products",color="#326b70",penwidth=1.4];
+add -> reduce [label="MAX / SUM inputs",color="#326b70",penwidth=1.4];
+sfu -> reduce [label="FP32 probability",color="#326b70",penwidth=1.4];
+reduce -> scalar [label="Segment results",color="#326b70",penwidth=1.4];
+scalar -> align [label="Broadcast / constants",color="#326b70",penwidth=1.4];
+mul -> write [label="",color="#326b70",penwidth=1.4];
+add -> write [label="",color="#326b70",penwidth=1.4];
+sfu -> align [label="Tagged return",color="#326b70",penwidth=1.4];
+cmd -> mul [label="Issue / credit",style=dashed,color="#936238"];
+cmd -> add [label="Issue / credit",style=dashed,color="#936238"];
+cmd -> sfu [label="Issue / credit",style=dashed,color="#936238"];
+acu -> cmd [label="Attention tasks",style=dashed,color="#936238"];
+write -> cmd [label="Completion ACK",style=dashed,color="#936238"];
+}

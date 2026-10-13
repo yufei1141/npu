@@ -1,0 +1,32 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.25",nodesep="0.35",ranksep="0.55",fontname="DejaVu Sans"];
+node [shape=box,style="rounded,filled",fillcolor="#eaf2ff",color="#6482a6",fontname="DejaVu Sans",fontsize=11,margin="0.15,0.1"];
+edge [fontname="DejaVu Sans",fontsize=9,color="#36546c",arrowsize=0.7];
+req [label="SFUReq32
+op / values / masks / tags",fillcolor="#e5f5ed"];
+class [label="Domain / special-value checks",fillcolor="#eaf2ff"];
+range [label="Range reduction
+EXP: x=k ln2+r
+RECIP/RSQRT: exponent + mantissa",fillcolor="#eaf2ff"];
+lut [label="Function coefficient ROMs
+Segment index / replicated read ports",fillcolor="#e5f5ed"];
+poly [label="Polynomial / correction stages
+Explicit rounding and non-FMA contract",fillcolor="#eaf2ff"];
+adjust [label="Exponent / sign reconstruction
+Clamp / exceptions",fillcolor="#eaf2ff"];
+fifo [label="Reserved return FIFO
+Fixed-latency IP credit wrapper",fillcolor="#e5f5ed"];
+resp [label="SFUResp32",fillcolor="#e5f5ed"];
+tag [label="Latency-matched tag / valid path",fillcolor="#fff2d9"];
+req -> class [label="",color="#326b70",penwidth=1.4];
+class -> range [label="",color="#326b70",penwidth=1.4];
+range -> lut [label="Segment",color="#326b70",penwidth=1.4];
+lut -> poly [label="Coefficients",color="#326b70",penwidth=1.4];
+range -> poly [label="Reduced argument",color="#326b70",penwidth=1.4];
+poly -> adjust [label="",color="#326b70",penwidth=1.4];
+adjust -> fifo [label="",color="#326b70",penwidth=1.4];
+fifo -> resp [label="",color="#326b70",penwidth=1.4];
+req -> tag [label="Accepted token",style=dashed,color="#936238"];
+tag -> fifo [label="Matched result metadata",style=dashed,color="#936238"];
+fifo -> req [label="Input credit",style=dashed,color="#936238"];
+}

@@ -1,0 +1,143 @@
+{
+  "assumptions": "issue/resource lower bounds; excludes pipelines, bank stalls, causal tails, and actual IP initiation intervals",
+  "swiglu": [
+    {
+      "M": 1,
+      "width": 16,
+      "gateup_issue": 98304,
+      "down_issue": 49152,
+      "swiglu_resource_floor": 2304,
+      "swiglu_serial_phase_issue": 4608,
+      "fraction_of_down": 0.046875
+    },
+    {
+      "M": 1,
+      "width": 32,
+      "gateup_issue": 98304,
+      "down_issue": 49152,
+      "swiglu_resource_floor": 1152,
+      "swiglu_serial_phase_issue": 2304,
+      "fraction_of_down": 0.0234375
+    },
+    {
+      "M": 1,
+      "width": 64,
+      "gateup_issue": 98304,
+      "down_issue": 49152,
+      "swiglu_resource_floor": 576,
+      "swiglu_serial_phase_issue": 1152,
+      "fraction_of_down": 0.01171875
+    },
+    {
+      "M": 32,
+      "width": 16,
+      "gateup_issue": 3145728,
+      "down_issue": 1572864,
+      "swiglu_resource_floor": 73728,
+      "swiglu_serial_phase_issue": 147456,
+      "fraction_of_down": 0.046875
+    },
+    {
+      "M": 32,
+      "width": 32,
+      "gateup_issue": 3145728,
+      "down_issue": 1572864,
+      "swiglu_resource_floor": 36864,
+      "swiglu_serial_phase_issue": 73728,
+      "fraction_of_down": 0.0234375
+    },
+    {
+      "M": 32,
+      "width": 64,
+      "gateup_issue": 3145728,
+      "down_issue": 1572864,
+      "swiglu_resource_floor": 18432,
+      "swiglu_serial_phase_issue": 36864,
+      "fraction_of_down": 0.01171875
+    }
+  ],
+  "attention": [
+    {
+      "width": 16,
+      "QK_issue": 512,
+      "PV_issue": 512,
+      "vector_phases": {
+        "max_scan": 256,
+        "exp_sum": 256,
+        "old_o_scale": 256,
+        "combine": 256
+      },
+      "serialized_tile_issue": 2048,
+      "relative_extra": 1.0,
+      "extra_4k_36layers_ms": 5.8982399999999995
+    },
+    {
+      "width": 32,
+      "QK_issue": 512,
+      "PV_issue": 512,
+      "vector_phases": {
+        "max_scan": 128,
+        "exp_sum": 128,
+        "old_o_scale": 128,
+        "combine": 128
+      },
+      "serialized_tile_issue": 1536,
+      "relative_extra": 0.5,
+      "extra_4k_36layers_ms": 2.9491199999999997
+    },
+    {
+      "width": 64,
+      "QK_issue": 512,
+      "PV_issue": 512,
+      "vector_phases": {
+        "max_scan": 64,
+        "exp_sum": 64,
+        "old_o_scale": 64,
+        "combine": 64
+      },
+      "serialized_tile_issue": 1280,
+      "relative_extra": 0.25,
+      "extra_4k_36layers_ms": 1.4745599999999999
+    }
+  ],
+  "bandwidth": [
+    {
+      "efficiency": 1,
+      "min_weight_channels": 9,
+      "lm_head_12channels_ms": 8.103253333333333,
+      "linear_weight_floor_ms": 33.914880000000004
+    },
+    {
+      "efficiency": 0.9,
+      "min_weight_channels": 10,
+      "lm_head_12channels_ms": 9.003614814814815,
+      "linear_weight_floor_ms": 33.914880000000004
+    },
+    {
+      "efficiency": 0.8,
+      "min_weight_channels": 11,
+      "lm_head_12channels_ms": 10.129066666666667,
+      "linear_weight_floor_ms": 34.97472
+    },
+    {
+      "efficiency": 0.7,
+      "min_weight_channels": 12,
+      "lm_head_12channels_ms": 11.57607619047619,
+      "linear_weight_floor_ms": 39.971108571428566
+    }
+  ],
+  "qk_output_burst": {
+    "elements": 128,
+    "producer_interval": 16,
+    "consumer_width": 32,
+    "minimum_stall_free_capacity": 128,
+    "recommendation": "two 128-element FP32 skid/result banks plus reserved in-flight capacity"
+  },
+  "scale": {
+    "elements_per_group": 128,
+    "group_period": 16,
+    "scale_width": 8,
+    "utilization": 1.0,
+    "note": "100% utilization: no recovery margin"
+  }
+}

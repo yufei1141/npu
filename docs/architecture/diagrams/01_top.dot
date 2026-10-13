@@ -1,0 +1,41 @@
+digraph G {
+graph [rankdir=TB,bgcolor="white",pad="0.25",nodesep="0.35",ranksep="0.55",fontname="DejaVu Sans"];
+node [shape=box,style="rounded,filled",fillcolor="#eaf2ff",color="#6482a6",fontname="DejaVu Sans",fontsize=11,margin="0.15,0.1"];
+edge [fontname="DejaVu Sans",fontsize=9,color="#36546c",arrowsize=0.7];
+host [label="Host / PCIe shell",fillcolor="#fff2d9"];
+hbm [label="HBM
+Weights / KV / hidden scratch",fillcolor="#e5f5ed"];
+dcu [label="DCU
+Program / events / scoreboard",fillcolor="#fff2d9"];
+dma [label="MCU / DMA
+Read + write + layout adapters",fillcolor="#eaf2ff"];
+stores [label="On-chip Stores
+Weights | KV | vectors | online state",fillcolor="#e5f5ed"];
+mpu [label="MPU
+128 tiles x 8 products",fillcolor="#eaf2ff"];
+vpu [label="VPU
+32 lanes + SFU + reduction",fillcolor="#eaf2ff"];
+acu [label="Acu
+Online attention orchestration",fillcolor="#fff2d9"];
+done [label="Completion / fault / perf",fillcolor="#fbe9e7"];
+host -> dcu [label="AXI-Lite / doorbell",style=dashed,color="#936238"];
+host -> hbm [label="Model / prompt upload",color="#326b70",penwidth=1.4];
+hbm -> dma [label="AXI read",color="#326b70",penwidth=1.4];
+dma -> hbm [label="AXI write",color="#326b70",penwidth=1.4];
+dma -> stores [label="Fill / pack / load",color="#326b70",penwidth=1.4];
+stores -> dma [label="Append / spill / store",color="#326b70",penwidth=1.4];
+stores -> mpu [label="Operands",color="#326b70",penwidth=1.4];
+mpu -> stores [label="FP32 / BF16 results",color="#326b70",penwidth=1.4];
+stores -> vpu [label="Vectors / state",color="#326b70",penwidth=1.4];
+vpu -> stores [label="Vectors / state",color="#326b70",penwidth=1.4];
+dcu -> dma [label="DmaCmd",style=dashed,color="#936238"];
+dcu -> mpu [label="MpuCmd",style=dashed,color="#936238"];
+dcu -> vpu [label="VpuCmd",style=dashed,color="#936238"];
+dcu -> acu [label="ATTN macro",style=dashed,color="#936238"];
+acu -> mpu [label="QK / PV jobs",style=dashed,color="#936238"];
+acu -> vpu [label="P / alpha / state jobs",style=dashed,color="#936238"];
+dma -> done [label="Done / fault",style=dashed,color="#936238"];
+mpu -> done [label="Done / fault",style=dashed,color="#936238"];
+vpu -> done [label="Done / fault",style=dashed,color="#936238"];
+done -> dcu [label="Events / credits",style=dashed,color="#936238"];
+}

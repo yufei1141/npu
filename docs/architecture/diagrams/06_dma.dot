@@ -1,0 +1,43 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.25",nodesep="0.35",ranksep="0.55",fontname="DejaVu Sans"];
+node [shape=box,style="rounded,filled",fillcolor="#eaf2ff",color="#6482a6",fontname="DejaVu Sans",fontsize=11,margin="0.15,0.1"];
+edge [fontname="DejaVu Sans",fontsize=9,color="#36546c",arrowsize=0.7];
+cmd [label="DCU / Acu DmaCmd",fillcolor="#fff2d9"];
+sched [label="DmaScheduler
+Weight / KV / activation / parameter queues",fillcolor="#fff2d9"];
+addr [label="AddressGenerator
+2D strides / 4 KiB burst split",fillcolor="#eaf2ff"];
+rd [label="ReadEngine[j]
+ID + burst + return credits",fillcolor="#eaf2ff"];
+wr [label="WriteEngine
+Burst staging / AW-W-B tracking",fillcolor="#eaf2ff"];
+hbm [label="HBM AXI interfaces",fillcolor="#e5f5ed"];
+router [label="ReadReorder / ReturnRouter
+tag + logical byte offset",fillcolor="#eaf2ff"];
+layout [label="Layout adapters
+Weight blocks / K pack / V pack",fillcolor="#eaf2ff"];
+store [label="LocalBankPortAdapter
+Weight / KV / vector stores",fillcolor="#e5f5ed"];
+copy [label="LocalCopyEngine
+Shared bank-port arbitration",fillcolor="#eaf2ff"];
+track [label="TransferTracker
+R/B counts + flush + destination ACK",fillcolor="#fff2d9"];
+done [label="DmaDone / SlotReady / fault",fillcolor="#fbe9e7"];
+cmd -> sched [label="",style=dashed,color="#936238"];
+sched -> addr [label="",style=dashed,color="#936238"];
+addr -> rd [label="Read burst",style=dashed,color="#936238"];
+addr -> wr [label="Write burst",style=dashed,color="#936238"];
+rd -> hbm [label="AR",style=dashed,color="#936238"];
+hbm -> router [label="R data",color="#326b70",penwidth=1.4];
+router -> layout [label="",color="#326b70",penwidth=1.4];
+layout -> store [label="Packed writes",color="#326b70",penwidth=1.4];
+store -> wr [label="Append / spill data",color="#326b70",penwidth=1.4];
+wr -> hbm [label="AW / W",color="#326b70",penwidth=1.4];
+hbm -> track [label="B response",style=dashed,color="#936238"];
+router -> track [label="R / errors",style=dashed,color="#936238"];
+layout -> track [label="Flush",style=dashed,color="#936238"];
+store -> track [label="Write ACK",style=dashed,color="#936238"];
+sched -> copy [label="LOCAL_COPY",style=dashed,color="#936238"];
+copy -> store [label="Local read / write",color="#326b70",penwidth=1.4];
+track -> done [label="",style=dashed,color="#936238"];
+}

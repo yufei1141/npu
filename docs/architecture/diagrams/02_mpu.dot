@@ -1,0 +1,51 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.25",nodesep="0.35",ranksep="0.55",fontname="DejaVu Sans"];
+node [shape=box,style="rounded,filled",fillcolor="#eaf2ff",color="#6482a6",fontname="DejaVu Sans",fontsize=11,margin="0.15,0.1"];
+edge [fontname="DejaVu Sans",fontsize=9,color="#36546c",arrowsize=0.7];
+cmd [label="MpuCmd queue
+JobSequencer",fillcolor="#fff2d9"];
+x [label="Activation fetch / broadcast
+Decode: 8 x BF16
+Prefill: 4 x 8 x BF16",fillcolor="#e5f5ed"];
+w [label="Weight / KV operand fetch",fillcolor="#e5f5ed"];
+w4 [label="W4 Product Clusters x16
+Shared x decode; m / 3m / 5m / 7m
+INT4 select -> FP32",fillcolor="#eaf2ff"];
+bf [label="BF16 Product Clusters x16
+BF16 x BF16 -> FP32",fillcolor="#eaf2ff"];
+dot [label="DOT8 x128
+4 + 2 + 1 FP32 ADD per tile",fillcolor="#eaf2ff"];
+gs [label="GroupCollector / GroupStore
+2 x 128 rows x 16 DOT
+16 KiB logical storage",fillcolor="#e5f5ed"];
+tree [label="Group16 tree
+8 rows/cycle
+64 -> 32 -> 16 -> 8 ADD",fillcolor="#eaf2ff"];
+scale [label="ScaleApply x8
+FP32 groupSum x scale",fillcolor="#eaf2ff"];
+total [label="TotalAccumulator
+8-bank store + FP32 ADD",fillcolor="#e5f5ed"];
+out [label="ResultEmitter / credit buffers
+32 elements/beat",fillcolor="#eaf2ff"];
+meta [label="Scale cache / masks / tags",fillcolor="#e5f5ed"];
+complete [label="CompletionTracker",fillcolor="#fff2d9"];
+subgraph cluster_0 {label="Compute product mode";color="#b5c5d6";style="rounded";w4;bf;}
+subgraph cluster_1 {label="Linear total path";color="#b5c5d6";style="rounded";scale;total;}
+cmd -> x [label="Fetch indices",style=dashed,color="#936238"];
+cmd -> w [label="Layout / mode",style=dashed,color="#936238"];
+x -> w4 [label="Shared x",color="#326b70",penwidth=1.4];
+w -> w4 [label="Packed q",color="#326b70",penwidth=1.4];
+x -> bf [label="x",color="#326b70",penwidth=1.4];
+w -> bf [label="BF16 operands",color="#326b70",penwidth=1.4];
+w4 -> dot [label="W4 mode",color="#326b70",penwidth=1.4];
+bf -> dot [label="BF16 mode",color="#326b70",penwidth=1.4];
+dot -> gs [label="128 DOT results",color="#326b70",penwidth=1.4];
+gs -> tree [label="8 rows x 16 DOT",color="#326b70",penwidth=1.4];
+tree -> scale [label="GroupBatch",color="#326b70",penwidth=1.4];
+meta -> scale [label="Aligned scales",color="#326b70",penwidth=1.4];
+scale -> total [label="W4 / linear",color="#326b70",penwidth=1.4];
+tree -> out [label="QK / PV group result",color="#326b70",penwidth=1.4];
+total -> out [label="Final linear result",color="#326b70",penwidth=1.4];
+out -> complete [label="Destination ACK",style=dashed,color="#936238"];
+complete -> cmd [label="Done / fault / drain",style=dashed,color="#936238"];
+}

@@ -1,0 +1,47 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.25",nodesep="0.35",ranksep="0.55",fontname="DejaVu Sans"];
+node [shape=box,style="rounded,filled",fillcolor="#eaf2ff",color="#6482a6",fontname="DejaVu Sans",fontsize=11,margin="0.15,0.1"];
+edge [fontname="DejaVu Sans",fontsize=9,color="#36546c",arrowsize=0.7];
+hbm [label="HBM token-major
+[layer][token][K 2048B | V 2048B]
+kvHead x dim BF16",fillcolor="#e5f5ed"];
+dma [label="KV DMA / pack staging
+K: 32-token 64 KiB
+V: 8-token 16 KiB",fillcolor="#eaf2ff"];
+a [label="KV slot A: 512 KiB
+FREE -> FILL -> READY -> READ",fillcolor="#e5f5ed"];
+b [label="KV slot B: 512 KiB
+Separate fill / compute banks",fillcolor="#e5f5ed"];
+c [label="KV slot C: +512 KiB
+Optional, NOT frozen",fillcolor="#fff2d9"];
+k [label="K view
+bank=(kvHead,dimGroup8)
+word=32 positions x 8 dims
+row=position/32",fillcolor="#e5f5ed"];
+v [label="V view
+bank=(kvHead,dim mod32)
+word=8 positions
+row=(dim/32)*16+position/8",fillcolor="#e5f5ed"];
+qk [label="MPU QK
+Select K position lanes
+4 Q heads share 1 KV head",fillcolor="#eaf2ff"];
+pv [label="MPU PV
+4 Q heads x 32 dims
+Shared V; separate probabilities",fillcolor="#eaf2ff"];
+manager [label="KvCacheManager / slot credits
+Ready after pack flush
+Release after last PV read",fillcolor="#fff2d9"];
+hbm -> dma [label="Fetch128 / append",color="#326b70",penwidth=1.4];
+dma -> a [label="Fill",color="#326b70",penwidth=1.4];
+dma -> b [label="Fill",color="#326b70",penwidth=1.4];
+dma -> c [label="Candidate fill",style=dashed,color="#936238"];
+a -> k [label="Selected ready slot",color="#326b70",penwidth=1.4];
+b -> k [label="",color="#326b70",penwidth=1.4];
+a -> v [label="",color="#326b70",penwidth=1.4];
+b -> v [label="",color="#326b70",penwidth=1.4];
+k -> qk [label="",color="#326b70",penwidth=1.4];
+v -> pv [label="",color="#326b70",penwidth=1.4];
+manager -> dma [label="Slot reservation",style=dashed,color="#936238"];
+manager -> qk [label="Tile ready",style=dashed,color="#936238"];
+pv -> manager [label="Last read done",style=dashed,color="#936238"];
+}

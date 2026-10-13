@@ -1,0 +1,46 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.25",nodesep="0.35",ranksep="0.55",fontname="DejaVu Sans"];
+node [shape=box,style="rounded,filled",fillcolor="#eaf2ff",color="#6482a6",fontname="DejaVu Sans",fontsize=11,margin="0.15,0.1"];
+edge [fontname="DejaVu Sans",fontsize=9,color="#36546c",arrowsize=0.7];
+qk [label="MPU QK",fillcolor="#eaf2ff"];
+score [label="ScoreStore + fused head MAX",fillcolor="#e5f5ed"];
+old [label="Committed state
+mOld / lOld / oOld",fillcolor="#e5f5ed"];
+newm [label="mNew=max(mOld,tileMax)
+alpha=exp(mOld-mNew)",fillcolor="#eaf2ff"];
+prob [label="VPU subtract + EXP
+pFP32=exp(score-mNew)",fillcolor="#eaf2ff"];
+ps [label="ProbabilityStore
+pBF16 for PV",fillcolor="#e5f5ed"];
+ls [label="SUM(pFP32)
+lNew=alpha*lOld+tileL",fillcolor="#eaf2ff"];
+scale [label="MUL32
+scaledO=alpha*oOld",fillcolor="#eaf2ff"];
+pv [label="MPU PV
+SUM(pBF16 x V)",fillcolor="#eaf2ff"];
+merge [label="ADD32 / NewO bank
+oNew=scaledO+PV",fillcolor="#eaf2ff"];
+commit [label="Commit mNew / lNew / oNew
+All destination ACKs",fillcolor="#fff2d9"];
+final [label="After last tile
+RECIP(l) -> MUL(o) -> BF16",fillcolor="#eaf2ff"];
+qk -> score [label="",color="#326b70",penwidth=1.4];
+score -> newm [label="tileMax",color="#326b70",penwidth=1.4];
+old -> newm [label="mOld / lOld",color="#326b70",penwidth=1.4];
+score -> prob [label="FP32 scores",color="#326b70",penwidth=1.4];
+newm -> prob [label="mNew",color="#326b70",penwidth=1.4];
+prob -> ps [label="Cast",color="#326b70",penwidth=1.4];
+prob -> ls [label="FP32 fork",color="#326b70",penwidth=1.4];
+newm -> scale [label="alpha",color="#326b70",penwidth=1.4];
+old -> scale [label="oOld",color="#326b70",penwidth=1.4];
+old -> ls [label="lOld",color="#326b70",penwidth=1.4];
+newm -> ls [label="alpha",color="#326b70",penwidth=1.4];
+ps -> pv [label="P ready",color="#326b70",penwidth=1.4];
+scale -> merge [label="ScaledO",color="#326b70",penwidth=1.4];
+pv -> merge [label="Contribution",color="#326b70",penwidth=1.4];
+merge -> commit [label="Write ACK",style=dashed,color="#936238"];
+ls -> commit [label="lNew ready",style=dashed,color="#936238"];
+newm -> commit [label="mNew ready",style=dashed,color="#936238"];
+commit -> old [label="Next version visible",style=dashed,color="#936238"];
+commit -> final [label="Last tile",style=dashed,color="#936238"];
+}

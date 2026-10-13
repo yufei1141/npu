@@ -1,0 +1,1292 @@
+{
+  "scope": "serial DMA fills, fused max, abstract PREP and MERGE, finite KV/score/prob slots; excludes bank conflicts, IP numerical operations and complete model program",
+  "scenarios": [
+    {
+      "tokens": 4096,
+      "slots": 2,
+      "lookahead": false,
+      "bytes_per_cycle": 512,
+      "cycles": 46889,
+      "us": 234.445,
+      "mpu_utilization": 0.6988419458721662,
+      "stats": {
+        "mpu_busy": 32768,
+        "vpu_busy": 13056,
+        "dma_busy": 34048,
+        "kv_high_water": 2,
+        "score_high_water": 1,
+        "prob_high_water": 1,
+        "mpu_idle": 14121
+      },
+      "first_events": [
+        {
+          "cycle": 0,
+          "event": "KV_FETCH",
+          "tile": 0
+        },
+        {
+          "cycle": 1064,
+          "event": "KV_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 1064,
+          "event": "QK_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1064,
+          "event": "KV_FETCH",
+          "tile": 1
+        },
+        {
+          "cycle": 1576,
+          "event": "QK_DONE",
+          "tile": 0
+        },
+        {
+          "cycle": 1576,
+          "event": "PREP_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1848,
+          "event": "P_SCALE_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 1848,
+          "event": "PV_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2128,
+          "event": "KV_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 2360,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 0
+        },
+        {
+          "cycle": 2360,
+          "event": "MERGE_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2360,
+          "event": "KV_FETCH",
+          "tile": 2
+        },
+        {
+          "cycle": 2496,
+          "event": "STATE_COMMIT",
+          "tile": 0
+        },
+        {
+          "cycle": 2496,
+          "event": "QK_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3008,
+          "event": "QK_DONE",
+          "tile": 1
+        },
+        {
+          "cycle": 3008,
+          "event": "PREP_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3280,
+          "event": "P_SCALE_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 3280,
+          "event": "PV_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3424,
+          "event": "KV_READY",
+          "tile": 2
+        },
+        {
+          "cycle": 3792,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 1
+        },
+        {
+          "cycle": 3792,
+          "event": "MERGE_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3792,
+          "event": "KV_FETCH",
+          "tile": 3
+        },
+        {
+          "cycle": 3928,
+          "event": "STATE_COMMIT",
+          "tile": 1
+        },
+        {
+          "cycle": 3928,
+          "event": "QK_START",
+          "tile": 2
+        }
+      ]
+    },
+    {
+      "tokens": 4096,
+      "slots": 2,
+      "lookahead": true,
+      "bytes_per_cycle": 512,
+      "cycles": 42673,
+      "us": 213.365,
+      "mpu_utilization": 0.7678860169193635,
+      "stats": {
+        "mpu_busy": 32768,
+        "vpu_busy": 13056,
+        "dma_busy": 34048,
+        "kv_high_water": 2,
+        "score_high_water": 1,
+        "prob_high_water": 1,
+        "mpu_idle": 9905
+      },
+      "first_events": [
+        {
+          "cycle": 0,
+          "event": "KV_FETCH",
+          "tile": 0
+        },
+        {
+          "cycle": 1064,
+          "event": "KV_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 1064,
+          "event": "QK_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1064,
+          "event": "KV_FETCH",
+          "tile": 1
+        },
+        {
+          "cycle": 1576,
+          "event": "QK_DONE",
+          "tile": 0
+        },
+        {
+          "cycle": 1576,
+          "event": "PREP_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1848,
+          "event": "P_SCALE_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 1848,
+          "event": "PV_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2128,
+          "event": "KV_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 2360,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 0
+        },
+        {
+          "cycle": 2360,
+          "event": "MERGE_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2360,
+          "event": "QK_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2360,
+          "event": "KV_FETCH",
+          "tile": 2
+        },
+        {
+          "cycle": 2496,
+          "event": "STATE_COMMIT",
+          "tile": 0
+        },
+        {
+          "cycle": 2872,
+          "event": "QK_DONE",
+          "tile": 1
+        },
+        {
+          "cycle": 2872,
+          "event": "PREP_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3144,
+          "event": "P_SCALE_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 3144,
+          "event": "PV_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3424,
+          "event": "KV_READY",
+          "tile": 2
+        },
+        {
+          "cycle": 3656,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 1
+        },
+        {
+          "cycle": 3656,
+          "event": "MERGE_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3656,
+          "event": "QK_START",
+          "tile": 2
+        },
+        {
+          "cycle": 3656,
+          "event": "KV_FETCH",
+          "tile": 3
+        },
+        {
+          "cycle": 3792,
+          "event": "STATE_COMMIT",
+          "tile": 1
+        }
+      ]
+    },
+    {
+      "tokens": 4096,
+      "slots": 3,
+      "lookahead": true,
+      "bytes_per_cycle": 512,
+      "cycles": 36129,
+      "us": 180.645,
+      "mpu_utilization": 0.90697223836807,
+      "stats": {
+        "mpu_busy": 32768,
+        "vpu_busy": 13056,
+        "dma_busy": 34048,
+        "kv_high_water": 3,
+        "score_high_water": 2,
+        "prob_high_water": 1,
+        "mpu_idle": 3361
+      },
+      "first_events": [
+        {
+          "cycle": 0,
+          "event": "KV_FETCH",
+          "tile": 0
+        },
+        {
+          "cycle": 1064,
+          "event": "KV_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 1064,
+          "event": "QK_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1064,
+          "event": "KV_FETCH",
+          "tile": 1
+        },
+        {
+          "cycle": 1576,
+          "event": "QK_DONE",
+          "tile": 0
+        },
+        {
+          "cycle": 1576,
+          "event": "PREP_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1848,
+          "event": "P_SCALE_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 1848,
+          "event": "PV_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2128,
+          "event": "KV_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 2128,
+          "event": "KV_FETCH",
+          "tile": 2
+        },
+        {
+          "cycle": 2360,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 0
+        },
+        {
+          "cycle": 2360,
+          "event": "MERGE_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2360,
+          "event": "QK_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2496,
+          "event": "STATE_COMMIT",
+          "tile": 0
+        },
+        {
+          "cycle": 2872,
+          "event": "QK_DONE",
+          "tile": 1
+        },
+        {
+          "cycle": 2872,
+          "event": "PREP_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3144,
+          "event": "P_SCALE_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 3144,
+          "event": "PV_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3192,
+          "event": "KV_READY",
+          "tile": 2
+        },
+        {
+          "cycle": 3192,
+          "event": "KV_FETCH",
+          "tile": 3
+        },
+        {
+          "cycle": 3656,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 1
+        },
+        {
+          "cycle": 3656,
+          "event": "MERGE_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3656,
+          "event": "QK_START",
+          "tile": 2
+        },
+        {
+          "cycle": 3792,
+          "event": "STATE_COMMIT",
+          "tile": 1
+        }
+      ]
+    },
+    {
+      "tokens": 4096,
+      "slots": 2,
+      "lookahead": false,
+      "bytes_per_cycle": 716,
+      "cycles": 46598,
+      "us": 232.99,
+      "mpu_utilization": 0.7032061461865317,
+      "stats": {
+        "mpu_busy": 32768,
+        "vpu_busy": 13056,
+        "dma_busy": 24736,
+        "kv_high_water": 2,
+        "score_high_water": 1,
+        "prob_high_water": 1,
+        "mpu_idle": 13830
+      },
+      "first_events": [
+        {
+          "cycle": 0,
+          "event": "KV_FETCH",
+          "tile": 0
+        },
+        {
+          "cycle": 773,
+          "event": "KV_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 773,
+          "event": "QK_START",
+          "tile": 0
+        },
+        {
+          "cycle": 773,
+          "event": "KV_FETCH",
+          "tile": 1
+        },
+        {
+          "cycle": 1285,
+          "event": "QK_DONE",
+          "tile": 0
+        },
+        {
+          "cycle": 1285,
+          "event": "PREP_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1546,
+          "event": "KV_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 1557,
+          "event": "P_SCALE_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 1557,
+          "event": "PV_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2069,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 0
+        },
+        {
+          "cycle": 2069,
+          "event": "MERGE_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2069,
+          "event": "KV_FETCH",
+          "tile": 2
+        },
+        {
+          "cycle": 2205,
+          "event": "STATE_COMMIT",
+          "tile": 0
+        },
+        {
+          "cycle": 2205,
+          "event": "QK_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2717,
+          "event": "QK_DONE",
+          "tile": 1
+        },
+        {
+          "cycle": 2717,
+          "event": "PREP_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2842,
+          "event": "KV_READY",
+          "tile": 2
+        },
+        {
+          "cycle": 2989,
+          "event": "P_SCALE_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 2989,
+          "event": "PV_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3501,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 1
+        },
+        {
+          "cycle": 3501,
+          "event": "MERGE_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3501,
+          "event": "KV_FETCH",
+          "tile": 3
+        },
+        {
+          "cycle": 3637,
+          "event": "STATE_COMMIT",
+          "tile": 1
+        },
+        {
+          "cycle": 3637,
+          "event": "QK_START",
+          "tile": 2
+        }
+      ]
+    },
+    {
+      "tokens": 4096,
+      "slots": 2,
+      "lookahead": true,
+      "bytes_per_cycle": 716,
+      "cycles": 44382,
+      "us": 221.91,
+      "mpu_utilization": 0.7383173358568789,
+      "stats": {
+        "mpu_busy": 32768,
+        "vpu_busy": 13056,
+        "dma_busy": 24736,
+        "kv_high_water": 2,
+        "score_high_water": 2,
+        "prob_high_water": 1,
+        "mpu_idle": 11614
+      },
+      "first_events": [
+        {
+          "cycle": 0,
+          "event": "KV_FETCH",
+          "tile": 0
+        },
+        {
+          "cycle": 773,
+          "event": "KV_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 773,
+          "event": "QK_START",
+          "tile": 0
+        },
+        {
+          "cycle": 773,
+          "event": "KV_FETCH",
+          "tile": 1
+        },
+        {
+          "cycle": 1285,
+          "event": "QK_DONE",
+          "tile": 0
+        },
+        {
+          "cycle": 1285,
+          "event": "PREP_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1546,
+          "event": "KV_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 1546,
+          "event": "QK_START",
+          "tile": 1
+        },
+        {
+          "cycle": 1557,
+          "event": "P_SCALE_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 2058,
+          "event": "QK_DONE",
+          "tile": 1
+        },
+        {
+          "cycle": 2058,
+          "event": "PV_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2570,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 0
+        },
+        {
+          "cycle": 2570,
+          "event": "MERGE_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2570,
+          "event": "KV_FETCH",
+          "tile": 2
+        },
+        {
+          "cycle": 2706,
+          "event": "STATE_COMMIT",
+          "tile": 0
+        },
+        {
+          "cycle": 2706,
+          "event": "PREP_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2978,
+          "event": "P_SCALE_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 2978,
+          "event": "PV_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3343,
+          "event": "KV_READY",
+          "tile": 2
+        },
+        {
+          "cycle": 3490,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 1
+        },
+        {
+          "cycle": 3490,
+          "event": "MERGE_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3490,
+          "event": "QK_START",
+          "tile": 2
+        },
+        {
+          "cycle": 3490,
+          "event": "KV_FETCH",
+          "tile": 3
+        },
+        {
+          "cycle": 3626,
+          "event": "STATE_COMMIT",
+          "tile": 1
+        }
+      ]
+    },
+    {
+      "tokens": 4096,
+      "slots": 3,
+      "lookahead": true,
+      "bytes_per_cycle": 716,
+      "cycles": 34347,
+      "us": 171.735,
+      "mpu_utilization": 0.9540280082685533,
+      "stats": {
+        "mpu_busy": 32768,
+        "vpu_busy": 13056,
+        "dma_busy": 24736,
+        "kv_high_water": 3,
+        "score_high_water": 2,
+        "prob_high_water": 1,
+        "mpu_idle": 1579
+      },
+      "first_events": [
+        {
+          "cycle": 0,
+          "event": "KV_FETCH",
+          "tile": 0
+        },
+        {
+          "cycle": 773,
+          "event": "KV_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 773,
+          "event": "QK_START",
+          "tile": 0
+        },
+        {
+          "cycle": 773,
+          "event": "KV_FETCH",
+          "tile": 1
+        },
+        {
+          "cycle": 1285,
+          "event": "QK_DONE",
+          "tile": 0
+        },
+        {
+          "cycle": 1285,
+          "event": "PREP_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1546,
+          "event": "KV_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 1546,
+          "event": "QK_START",
+          "tile": 1
+        },
+        {
+          "cycle": 1546,
+          "event": "KV_FETCH",
+          "tile": 2
+        },
+        {
+          "cycle": 1557,
+          "event": "P_SCALE_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 2058,
+          "event": "QK_DONE",
+          "tile": 1
+        },
+        {
+          "cycle": 2058,
+          "event": "PV_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2319,
+          "event": "KV_READY",
+          "tile": 2
+        },
+        {
+          "cycle": 2570,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 0
+        },
+        {
+          "cycle": 2570,
+          "event": "MERGE_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2570,
+          "event": "QK_START",
+          "tile": 2
+        },
+        {
+          "cycle": 2570,
+          "event": "KV_FETCH",
+          "tile": 3
+        },
+        {
+          "cycle": 2706,
+          "event": "STATE_COMMIT",
+          "tile": 0
+        },
+        {
+          "cycle": 2706,
+          "event": "PREP_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2978,
+          "event": "P_SCALE_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 3082,
+          "event": "QK_DONE",
+          "tile": 2
+        },
+        {
+          "cycle": 3082,
+          "event": "PV_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3343,
+          "event": "KV_READY",
+          "tile": 3
+        },
+        {
+          "cycle": 3594,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 1
+        }
+      ]
+    },
+    {
+      "tokens": 4096,
+      "slots": 2,
+      "lookahead": false,
+      "bytes_per_cycle": 896,
+      "cycles": 46451,
+      "us": 232.255,
+      "mpu_utilization": 0.7054315299993542,
+      "stats": {
+        "mpu_busy": 32768,
+        "vpu_busy": 13056,
+        "dma_busy": 20032,
+        "kv_high_water": 2,
+        "score_high_water": 1,
+        "prob_high_water": 1,
+        "mpu_idle": 13683
+      },
+      "first_events": [
+        {
+          "cycle": 0,
+          "event": "KV_FETCH",
+          "tile": 0
+        },
+        {
+          "cycle": 626,
+          "event": "KV_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 626,
+          "event": "QK_START",
+          "tile": 0
+        },
+        {
+          "cycle": 626,
+          "event": "KV_FETCH",
+          "tile": 1
+        },
+        {
+          "cycle": 1138,
+          "event": "QK_DONE",
+          "tile": 0
+        },
+        {
+          "cycle": 1138,
+          "event": "PREP_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1252,
+          "event": "KV_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 1410,
+          "event": "P_SCALE_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 1410,
+          "event": "PV_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1922,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 0
+        },
+        {
+          "cycle": 1922,
+          "event": "MERGE_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1922,
+          "event": "KV_FETCH",
+          "tile": 2
+        },
+        {
+          "cycle": 2058,
+          "event": "STATE_COMMIT",
+          "tile": 0
+        },
+        {
+          "cycle": 2058,
+          "event": "QK_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2548,
+          "event": "KV_READY",
+          "tile": 2
+        },
+        {
+          "cycle": 2570,
+          "event": "QK_DONE",
+          "tile": 1
+        },
+        {
+          "cycle": 2570,
+          "event": "PREP_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2842,
+          "event": "P_SCALE_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 2842,
+          "event": "PV_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3354,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 1
+        },
+        {
+          "cycle": 3354,
+          "event": "MERGE_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3354,
+          "event": "KV_FETCH",
+          "tile": 3
+        },
+        {
+          "cycle": 3490,
+          "event": "STATE_COMMIT",
+          "tile": 1
+        },
+        {
+          "cycle": 3490,
+          "event": "QK_START",
+          "tile": 2
+        }
+      ]
+    },
+    {
+      "tokens": 4096,
+      "slots": 2,
+      "lookahead": true,
+      "bytes_per_cycle": 896,
+      "cycles": 41883,
+      "us": 209.415,
+      "mpu_utilization": 0.7823699352959435,
+      "stats": {
+        "mpu_busy": 32768,
+        "vpu_busy": 13056,
+        "dma_busy": 20032,
+        "kv_high_water": 2,
+        "score_high_water": 2,
+        "prob_high_water": 1,
+        "mpu_idle": 9115
+      },
+      "first_events": [
+        {
+          "cycle": 0,
+          "event": "KV_FETCH",
+          "tile": 0
+        },
+        {
+          "cycle": 626,
+          "event": "KV_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 626,
+          "event": "QK_START",
+          "tile": 0
+        },
+        {
+          "cycle": 626,
+          "event": "KV_FETCH",
+          "tile": 1
+        },
+        {
+          "cycle": 1138,
+          "event": "QK_DONE",
+          "tile": 0
+        },
+        {
+          "cycle": 1138,
+          "event": "PREP_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1252,
+          "event": "KV_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 1252,
+          "event": "QK_START",
+          "tile": 1
+        },
+        {
+          "cycle": 1410,
+          "event": "P_SCALE_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 1764,
+          "event": "QK_DONE",
+          "tile": 1
+        },
+        {
+          "cycle": 1764,
+          "event": "PV_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2276,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 0
+        },
+        {
+          "cycle": 2276,
+          "event": "MERGE_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2276,
+          "event": "KV_FETCH",
+          "tile": 2
+        },
+        {
+          "cycle": 2412,
+          "event": "STATE_COMMIT",
+          "tile": 0
+        },
+        {
+          "cycle": 2412,
+          "event": "PREP_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2684,
+          "event": "P_SCALE_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 2684,
+          "event": "PV_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2902,
+          "event": "KV_READY",
+          "tile": 2
+        },
+        {
+          "cycle": 3196,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 1
+        },
+        {
+          "cycle": 3196,
+          "event": "MERGE_START",
+          "tile": 1
+        },
+        {
+          "cycle": 3196,
+          "event": "QK_START",
+          "tile": 2
+        },
+        {
+          "cycle": 3196,
+          "event": "KV_FETCH",
+          "tile": 3
+        },
+        {
+          "cycle": 3332,
+          "event": "STATE_COMMIT",
+          "tile": 1
+        }
+      ]
+    },
+    {
+      "tokens": 4096,
+      "slots": 3,
+      "lookahead": true,
+      "bytes_per_cycle": 896,
+      "cycles": 34053,
+      "us": 170.265,
+      "mpu_utilization": 0.9622647050186474,
+      "stats": {
+        "mpu_busy": 32768,
+        "vpu_busy": 13056,
+        "dma_busy": 20032,
+        "kv_high_water": 3,
+        "score_high_water": 2,
+        "prob_high_water": 1,
+        "mpu_idle": 1285
+      },
+      "first_events": [
+        {
+          "cycle": 0,
+          "event": "KV_FETCH",
+          "tile": 0
+        },
+        {
+          "cycle": 626,
+          "event": "KV_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 626,
+          "event": "QK_START",
+          "tile": 0
+        },
+        {
+          "cycle": 626,
+          "event": "KV_FETCH",
+          "tile": 1
+        },
+        {
+          "cycle": 1138,
+          "event": "QK_DONE",
+          "tile": 0
+        },
+        {
+          "cycle": 1138,
+          "event": "PREP_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1252,
+          "event": "KV_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 1252,
+          "event": "QK_START",
+          "tile": 1
+        },
+        {
+          "cycle": 1252,
+          "event": "KV_FETCH",
+          "tile": 2
+        },
+        {
+          "cycle": 1410,
+          "event": "P_SCALE_READY",
+          "tile": 0
+        },
+        {
+          "cycle": 1764,
+          "event": "QK_DONE",
+          "tile": 1
+        },
+        {
+          "cycle": 1764,
+          "event": "PV_START",
+          "tile": 0
+        },
+        {
+          "cycle": 1878,
+          "event": "KV_READY",
+          "tile": 2
+        },
+        {
+          "cycle": 2276,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 0
+        },
+        {
+          "cycle": 2276,
+          "event": "MERGE_START",
+          "tile": 0
+        },
+        {
+          "cycle": 2276,
+          "event": "QK_START",
+          "tile": 2
+        },
+        {
+          "cycle": 2276,
+          "event": "KV_FETCH",
+          "tile": 3
+        },
+        {
+          "cycle": 2412,
+          "event": "STATE_COMMIT",
+          "tile": 0
+        },
+        {
+          "cycle": 2412,
+          "event": "PREP_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2684,
+          "event": "P_SCALE_READY",
+          "tile": 1
+        },
+        {
+          "cycle": 2788,
+          "event": "QK_DONE",
+          "tile": 2
+        },
+        {
+          "cycle": 2788,
+          "event": "PV_START",
+          "tile": 1
+        },
+        {
+          "cycle": 2902,
+          "event": "KV_READY",
+          "tile": 3
+        },
+        {
+          "cycle": 3300,
+          "event": "PV_DONE_KV_RELEASE",
+          "tile": 1
+        }
+      ]
+    }
+  ],
+  "boundary_checks": [
+    {
+      "tokens": 1,
+      "serial": 1479,
+      "lookahead": 1479
+    },
+    {
+      "tokens": 127,
+      "serial": 2200,
+      "lookahead": 2200
+    },
+    {
+      "tokens": 128,
+      "serial": 2206,
+      "lookahead": 2206
+    },
+    {
+      "tokens": 129,
+      "serial": 3638,
+      "lookahead": 3366
+    },
+    {
+      "tokens": 4096,
+      "serial": 46598,
+      "lookahead": 34347
+    }
+  ]
+}

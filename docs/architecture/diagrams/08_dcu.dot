@@ -1,0 +1,37 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.25",nodesep="0.35",ranksep="0.55",fontname="DejaVu Sans"];
+node [shape=box,style="rounded,filled",fillcolor="#eaf2ff",color="#6482a6",fontname="DejaVu Sans",fontsize=11,margin="0.15,0.1"];
+edge [fontname="DejaVu Sans",fontsize=9,color="#36546c",arrowsize=0.7];
+prog [label="Program / tensor descriptors",fillcolor="#e5f5ed"];
+fetch [label="ProgramFetcher
+Instruction FIFO",fillcolor="#eaf2ff"];
+valid [label="DescriptorValidator
+Shape / range / format / alias",fillcolor="#eaf2ff"];
+events [label="EventScoreboard
+slot + generation + epoch",fillcolor="#fff2d9"];
+res [label="ResourceChecker
+Unit queue / bank / slot / return credits",fillcolor="#fff2d9"];
+disp [label="Dispatcher
+In-order macro issue",fillcolor="#eaf2ff"];
+units [label="MPU / VPU / DMA command queues",fillcolor="#e5f5ed"];
+acu [label="Acu
+Attention tile FSM
+Serial / lookahead candidate",fillcolor="#eaf2ff"];
+ret [label="CompletionCollector
+Destination ACK / B response",fillcolor="#fff2d9"];
+fault [label="FaultController / perf
+Stop issue -> drain -> faultDone",fillcolor="#fbe9e7"];
+prog -> fetch [label="",color="#326b70",penwidth=1.4];
+fetch -> valid [label="",color="#326b70",penwidth=1.4];
+valid -> disp [label="",style=dashed,color="#936238"];
+events -> disp [label="Dependencies ready",style=dashed,color="#936238"];
+res -> disp [label="Resources available",style=dashed,color="#936238"];
+disp -> units [label="",style=dashed,color="#936238"];
+disp -> acu [label="ATTN macro",style=dashed,color="#936238"];
+acu -> units [label="QK/PV + VPU + KV jobs",style=dashed,color="#936238"];
+units -> ret [label="UnitDone",style=dashed,color="#936238"];
+ret -> events [label="Commit event",style=dashed,color="#936238"];
+ret -> res [label="Release credits",style=dashed,color="#936238"];
+ret -> fault [label="Status / counters",style=dashed,color="#936238"];
+fault -> disp [label="Stop / epoch control",style=dashed,color="#936238"];
+}

@@ -1,0 +1,1648 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NPU v0.5 架构图</title><style>body{font-family:system-ui,sans-serif;margin:0;background:#f2f5f9;color:#172b43}main{max-width:1500px;margin:auto;padding:24px}section{background:white;border:1px solid #d9e2ef;border-radius:12px;padding:20px;margin:24px 0}svg{width:100%;height:auto;min-width:650px}.canvas{overflow:auto}p{line-height:1.7}a{color:#225f9b}nav{line-height:2}small{color:#596b7d}</style><main><h1>NPU v0.5 架构图</h1><p>Qwen3-8B · MPU / VPU / DMA / DCU · prefill + decode</p><p>实线：数据；虚线：控制/事件。当前为设计图，非已实现RTL。可选第三KV slot与未测浮点延迟均未冻结。</p><nav><a href="#01_top">1. 顶层架构</a> &nbsp; <a href="#02_mpu">2. MPU内部结构</a> &nbsp; <a href="#03_w4">3. W4产品单元与计算映射</a> &nbsp; <a href="#04_vpu">4. VPU内部结构</a> &nbsp; <a href="#05_sfu">5. SFU流水线</a> &nbsp; <a href="#06_dma">6. DMA子系统</a> &nbsp; <a href="#07_kv">7. KV存储与计算视图</a> &nbsp; <a href="#08_dcu">8. DCU与事件调度</a> &nbsp; <a href="#09_attention">9. Online Attention数据流与依赖</a> &nbsp; </nav><section id="01_top"><h2>1. 顶层架构</h2><p>实线是数据通路，虚线是命令、事件和资源控制。MCU为访存控制层，内部包含显式DMA子系统；Acu是attention控制器，共用MPU/VPU。PCIe DMA属于板卡shell。</p><div class="canvas"><svg width="696pt" height="774pt"
+ viewBox="0.00 0.00 696.00 774.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 756)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-756 678,-756 678,18 -18,18"/>
+<!-- host -->
+<g id="node1" class="node">
+<title>host</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M449.5,-738C449.5,-738 360.5,-738 360.5,-738 354.5,-738 348.5,-732 348.5,-726 348.5,-726 348.5,-714 348.5,-714 348.5,-708 354.5,-702 360.5,-702 360.5,-702 449.5,-702 449.5,-702 455.5,-702 461.5,-708 461.5,-714 461.5,-714 461.5,-726 461.5,-726 461.5,-732 455.5,-738 449.5,-738"/>
+<text text-anchor="middle" x="405" y="-717.2" font-family="DejaVu Sans" font-size="11.00">Host / PCIe shell</text>
+</g>
+<!-- hbm -->
+<g id="node2" class="node">
+<title>hbm</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M414.5,-652C414.5,-652 253.5,-652 253.5,-652 247.5,-652 241.5,-646 241.5,-640 241.5,-640 241.5,-626 241.5,-626 241.5,-620 247.5,-614 253.5,-614 253.5,-614 414.5,-614 414.5,-614 420.5,-614 426.5,-620 426.5,-626 426.5,-626 426.5,-640 426.5,-640 426.5,-646 420.5,-652 414.5,-652"/>
+<text text-anchor="middle" x="334" y="-636.2" font-family="DejaVu Sans" font-size="11.00">HBM</text>
+<text text-anchor="middle" x="334" y="-624.2" font-family="DejaVu Sans" font-size="11.00">Weights / KV / hidden scratch</text>
+</g>
+<!-- host&#45;&gt;hbm -->
+<g id="edge2" class="edge">
+<title>host&#45;&gt;hbm</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M375.65,-701.87C367.86,-696.28 359.97,-689.55 354,-682 348.68,-675.28 344.56,-666.94 341.48,-659.11"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="343.63,-657.86 338.93,-652.12 339.02,-659.54 343.63,-657.86"/>
+<text text-anchor="middle" x="405.5" y="-674.8" font-family="DejaVu Sans" font-size="9.00">Model / prompt upload</text>
+</g>
+<!-- dcu -->
+<g id="node3" class="node">
+<title>dcu</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M555.5,-390C555.5,-390 388.5,-390 388.5,-390 382.5,-390 376.5,-384 376.5,-378 376.5,-378 376.5,-364 376.5,-364 376.5,-358 382.5,-352 388.5,-352 388.5,-352 555.5,-352 555.5,-352 561.5,-352 567.5,-358 567.5,-364 567.5,-364 567.5,-378 567.5,-378 567.5,-384 561.5,-390 555.5,-390"/>
+<text text-anchor="middle" x="472" y="-374.2" font-family="DejaVu Sans" font-size="11.00">DCU</text>
+<text text-anchor="middle" x="472" y="-362.2" font-family="DejaVu Sans" font-size="11.00">Program / events / scoreboard</text>
+</g>
+<!-- host&#45;&gt;dcu -->
+<g id="edge1" class="edge">
+<title>host&#45;&gt;dcu</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M436.93,-701.97C445,-696.47 453.04,-689.75 459,-682 472.79,-664.06 476,-656.63 476,-634 476,-634 476,-634 476,-457 476,-437.01 474.88,-414.42 473.83,-397.55"/>
+<polygon fill="#936238" stroke="#936238" points="476.25,-397.05 473.35,-390.23 471.36,-397.37 476.25,-397.05"/>
+<text text-anchor="middle" x="516" y="-542.8" font-family="DejaVu Sans" font-size="9.00">AXI&#45;Lite / doorbell</text>
+</g>
+<!-- dma -->
+<g id="node4" class="node">
+<title>dma</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M350,-564C350,-564 176,-564 176,-564 170,-564 164,-558 164,-552 164,-552 164,-538 164,-538 164,-532 170,-526 176,-526 176,-526 350,-526 350,-526 356,-526 362,-532 362,-538 362,-538 362,-552 362,-552 362,-558 356,-564 350,-564"/>
+<text text-anchor="middle" x="263" y="-548.2" font-family="DejaVu Sans" font-size="11.00">MCU / DMA</text>
+<text text-anchor="middle" x="263" y="-536.2" font-family="DejaVu Sans" font-size="11.00">Read + write + layout adapters</text>
+</g>
+<!-- hbm&#45;&gt;dma -->
+<g id="edge3" class="edge">
+<title>hbm&#45;&gt;dma</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M324.69,-613.85C319.5,-604.5 312.56,-593.17 305,-584 300.77,-578.87 295.85,-573.81 290.9,-569.12"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="292.36,-567.14 285.54,-564.21 289.04,-570.75 292.36,-567.14"/>
+<text text-anchor="middle" x="332.5" y="-586.8" font-family="DejaVu Sans" font-size="9.00">AXI read</text>
+</g>
+<!-- dcu&#45;&gt;dma -->
+<g id="edge11" class="edge">
+<title>dcu&#45;&gt;dma</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M453.41,-390.35C425.85,-417.15 372.01,-467.93 322,-506 314.88,-511.42 306.99,-516.86 299.36,-521.86"/>
+<polygon fill="#936238" stroke="#936238" points="297.58,-520.09 293.03,-525.94 300.24,-524.2 297.58,-520.09"/>
+<text text-anchor="middle" x="420.5" y="-455.8" font-family="DejaVu Sans" font-size="9.00">DmaCmd</text>
+</g>
+<!-- mpu -->
+<g id="node6" class="node">
+<title>mpu</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M441.5,-214C441.5,-214 322.5,-214 322.5,-214 316.5,-214 310.5,-208 310.5,-202 310.5,-202 310.5,-188 310.5,-188 310.5,-182 316.5,-176 322.5,-176 322.5,-176 441.5,-176 441.5,-176 447.5,-176 453.5,-182 453.5,-188 453.5,-188 453.5,-202 453.5,-202 453.5,-208 447.5,-214 441.5,-214"/>
+<text text-anchor="middle" x="382" y="-198.2" font-family="DejaVu Sans" font-size="11.00">MPU</text>
+<text text-anchor="middle" x="382" y="-186.2" font-family="DejaVu Sans" font-size="11.00">128 tiles x 8 products</text>
+</g>
+<!-- dcu&#45;&gt;mpu -->
+<g id="edge12" class="edge">
+<title>dcu&#45;&gt;mpu</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M485.7,-351.68C500.36,-329.66 519.42,-292.16 503,-264 490.57,-242.68 468.73,-227.54 446.99,-217.04"/>
+<polygon fill="#936238" stroke="#936238" points="447.95,-214.79 440.56,-214.07 445.89,-219.23 447.95,-214.79"/>
+<text text-anchor="middle" x="529.5" y="-280.8" font-family="DejaVu Sans" font-size="9.00">MpuCmd</text>
+</g>
+<!-- vpu -->
+<g id="node7" class="node">
+<title>vpu</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M492.5,-38C492.5,-38 341.5,-38 341.5,-38 335.5,-38 329.5,-32 329.5,-26 329.5,-26 329.5,-12 329.5,-12 329.5,-6 335.5,0 341.5,0 341.5,0 492.5,0 492.5,0 498.5,0 504.5,-6 504.5,-12 504.5,-12 504.5,-26 504.5,-26 504.5,-32 498.5,-38 492.5,-38"/>
+<text text-anchor="middle" x="417" y="-22.2" font-family="DejaVu Sans" font-size="11.00">VPU</text>
+<text text-anchor="middle" x="417" y="-10.2" font-family="DejaVu Sans" font-size="11.00">32 lanes + SFU + reduction</text>
+</g>
+<!-- dcu&#45;&gt;vpu -->
+<g id="edge13" class="edge">
+<title>dcu&#45;&gt;vpu</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M556.38,-351.9C589.61,-339.36 620,-318.47 620,-284 620,-284 620,-284 620,-106 620,-54.81 564.59,-33.63 511.67,-25.08"/>
+<polygon fill="#936238" stroke="#936238" points="511.85,-22.63 504.56,-24.01 511.12,-27.48 511.85,-22.63"/>
+<text text-anchor="middle" x="640" y="-192.8" font-family="DejaVu Sans" font-size="9.00">VpuCmd</text>
+</g>
+<!-- acu -->
+<g id="node8" class="node">
+<title>acu</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M478.5,-302C478.5,-302 313.5,-302 313.5,-302 307.5,-302 301.5,-296 301.5,-290 301.5,-290 301.5,-276 301.5,-276 301.5,-270 307.5,-264 313.5,-264 313.5,-264 478.5,-264 478.5,-264 484.5,-264 490.5,-270 490.5,-276 490.5,-276 490.5,-290 490.5,-290 490.5,-296 484.5,-302 478.5,-302"/>
+<text text-anchor="middle" x="396" y="-286.2" font-family="DejaVu Sans" font-size="11.00">Acu</text>
+<text text-anchor="middle" x="396" y="-274.2" font-family="DejaVu Sans" font-size="11.00">Online attention orchestration</text>
+</g>
+<!-- dcu&#45;&gt;acu -->
+<g id="edge14" class="edge">
+<title>dcu&#45;&gt;acu</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M455.88,-351.76C444.5,-338.88 429.13,-321.49 416.82,-307.56"/>
+<polygon fill="#936238" stroke="#936238" points="418.57,-305.84 412.09,-302.21 414.89,-309.08 418.57,-305.84"/>
+<text text-anchor="middle" x="463.5" y="-324.8" font-family="DejaVu Sans" font-size="9.00">ATTN macro</text>
+</g>
+<!-- dma&#45;&gt;hbm -->
+<g id="edge4" class="edge">
+<title>dma&#45;&gt;hbm</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M256.03,-564.08C253.54,-573.62 252.54,-585.16 258,-594 261.84,-600.21 267.03,-605.44 272.92,-609.84"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="271.84,-612.06 279.01,-613.96 274.59,-608.01 271.84,-612.06"/>
+<text text-anchor="middle" x="278.5" y="-586.8" font-family="DejaVu Sans" font-size="9.00">AXI write</text>
+</g>
+<!-- stores -->
+<g id="node5" class="node">
+<title>stores</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M445,-126C445,-126 247,-126 247,-126 241,-126 235,-120 235,-114 235,-114 235,-100 235,-100 235,-94 241,-88 247,-88 247,-88 445,-88 445,-88 451,-88 457,-94 457,-100 457,-100 457,-114 457,-114 457,-120 451,-126 445,-126"/>
+<text text-anchor="middle" x="346" y="-110.2" font-family="DejaVu Sans" font-size="11.00">On&#45;chip Stores</text>
+<text text-anchor="middle" x="346" y="-98.2" font-family="DejaVu Sans" font-size="11.00">Weights | KV | vectors | online state</text>
+</g>
+<!-- dma&#45;&gt;stores -->
+<g id="edge5" class="edge">
+<title>dma&#45;&gt;stores</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M163.95,-530.67C89.39,-517.76 0,-494.81 0,-459 0,-459 0,-459 0,-194 0,-145.95 127.29,-124.55 227.46,-115.15"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="227.87,-117.57 234.62,-114.49 227.42,-112.69 227.87,-117.57"/>
+<text text-anchor="middle" x="35" y="-324.8" font-family="DejaVu Sans" font-size="9.00">Fill / pack / load</text>
+</g>
+<!-- done -->
+<g id="node9" class="node">
+<title>done</title>
+<path fill="#fbe9e7" stroke="#6482a6" d="M328,-476C328,-476 198,-476 198,-476 192,-476 186,-470 186,-464 186,-464 186,-452 186,-452 186,-446 192,-440 198,-440 198,-440 328,-440 328,-440 334,-440 340,-446 340,-452 340,-452 340,-464 340,-464 340,-470 334,-476 328,-476"/>
+<text text-anchor="middle" x="263" y="-455.2" font-family="DejaVu Sans" font-size="11.00">Completion / fault / perf</text>
+</g>
+<!-- dma&#45;&gt;done -->
+<g id="edge17" class="edge">
+<title>dma&#45;&gt;done</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M263,-525.97C263,-513.56 263,-496.91 263,-483.32"/>
+<polygon fill="#936238" stroke="#936238" points="265.45,-483.13 263,-476.13 260.55,-483.13 265.45,-483.13"/>
+<text text-anchor="middle" x="289.5" y="-498.8" font-family="DejaVu Sans" font-size="9.00">Done / fault</text>
+</g>
+<!-- stores&#45;&gt;dma -->
+<g id="edge6" class="edge">
+<title>stores&#45;&gt;dma</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M237.38,-126.07C171.48,-140.23 100,-162.78 100,-194 100,-459 100,-459 100,-459 100,-491.63 125.99,-511.75 157.22,-524.15"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="156.54,-526.52 163.95,-526.68 158.26,-521.93 156.54,-526.52"/>
+<text text-anchor="middle" x="147" y="-324.8" font-family="DejaVu Sans" font-size="9.00">Append / spill / store</text>
+</g>
+<!-- stores&#45;&gt;mpu -->
+<g id="edge7" class="edge">
+<title>stores&#45;&gt;mpu</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M317.66,-126.07C307.75,-134.72 300.54,-145.48 307,-156 310.78,-162.16 315.91,-167.35 321.71,-171.73"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="320.56,-173.91 327.72,-175.84 323.32,-169.87 320.56,-173.91"/>
+<text text-anchor="middle" x="329" y="-148.8" font-family="DejaVu Sans" font-size="9.00">Operands</text>
+</g>
+<!-- stores&#45;&gt;vpu -->
+<g id="edge9" class="edge">
+<title>stores&#45;&gt;vpu</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M326.96,-87.65C319.76,-78.45 314.66,-67.33 321,-58 325.32,-51.64 330.89,-46.35 337.16,-41.94"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="338.53,-43.98 343.1,-38.14 335.89,-39.85 338.53,-43.98"/>
+<text text-anchor="middle" x="353.5" y="-60.8" font-family="DejaVu Sans" font-size="9.00">Vectors / state</text>
+</g>
+<!-- mpu&#45;&gt;stores -->
+<g id="edge8" class="edge">
+<title>mpu&#45;&gt;stores</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M374.37,-175.76C369.12,-163.22 362.08,-146.41 356.33,-132.68"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="358.59,-131.72 353.62,-126.21 354.07,-133.62 358.59,-131.72"/>
+<text text-anchor="middle" x="410" y="-148.8" font-family="DejaVu Sans" font-size="9.00">FP32 / BF16 results</text>
+</g>
+<!-- mpu&#45;&gt;done -->
+<g id="edge18" class="edge">
+<title>mpu&#45;&gt;done</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M344.38,-214.04C324.62,-225.53 301.89,-242.34 289,-264 257.16,-317.53 257.68,-393.96 260.48,-432.61"/>
+<polygon fill="#936238" stroke="#936238" points="258.05,-433.04 261.06,-439.82 262.94,-432.65 258.05,-433.04"/>
+<text text-anchor="middle" x="293.5" y="-324.8" font-family="DejaVu Sans" font-size="9.00">Done / fault</text>
+</g>
+<!-- vpu&#45;&gt;stores -->
+<g id="edge10" class="edge">
+<title>vpu&#45;&gt;stores</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M407.69,-38.15C402.5,-47.5 395.56,-58.83 388,-68 383.77,-73.13 378.85,-78.19 373.9,-82.88"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="372.04,-81.25 368.54,-87.79 375.36,-84.86 372.04,-81.25"/>
+<text text-anchor="middle" x="427.5" y="-60.8" font-family="DejaVu Sans" font-size="9.00">Vectors / state</text>
+</g>
+<!-- vpu&#45;&gt;done -->
+<g id="edge19" class="edge">
+<title>vpu&#45;&gt;done</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M329.46,-27.91C289.84,-36.37 246.5,-53.51 222,-88 144.75,-196.75 219.2,-370.83 250.56,-433.54"/>
+<polygon fill="#936238" stroke="#936238" points="248.45,-434.8 253.8,-439.94 252.82,-432.59 248.45,-434.8"/>
+<text text-anchor="middle" x="217.5" y="-236.8" font-family="DejaVu Sans" font-size="9.00">Done / fault</text>
+</g>
+<!-- acu&#45;&gt;mpu -->
+<g id="edge15" class="edge">
+<title>acu&#45;&gt;mpu</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M393.03,-263.76C391.03,-251.45 388.35,-235.02 386.14,-221.43"/>
+<polygon fill="#936238" stroke="#936238" points="388.51,-220.73 384.96,-214.21 383.67,-221.51 388.51,-220.73"/>
+<text text-anchor="middle" x="416.5" y="-236.8" font-family="DejaVu Sans" font-size="9.00">QK / PV jobs</text>
+</g>
+<!-- acu&#45;&gt;vpu -->
+<g id="edge16" class="edge">
+<title>acu&#45;&gt;vpu</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M426.89,-263.95C435.04,-258.26 443.4,-251.47 450,-244 460.01,-232.68 462.09,-228.6 466,-214 483.96,-147.03 499.57,-118.66 466,-58 462.86,-52.33 458.49,-47.22 453.63,-42.73"/>
+<polygon fill="#936238" stroke="#936238" points="455.13,-40.78 448.21,-38.1 451.94,-44.51 455.13,-40.78"/>
+<text text-anchor="middle" x="529" y="-148.8" font-family="DejaVu Sans" font-size="9.00">P / alpha / state jobs</text>
+</g>
+<!-- done&#45;&gt;dcu -->
+<g id="edge20" class="edge">
+<title>done&#45;&gt;dcu</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M274.26,-439.76C281.78,-429.6 292.56,-417.34 305,-410 324.5,-398.51 347.17,-390.49 369.4,-384.89"/>
+<polygon fill="#936238" stroke="#936238" points="370.05,-387.26 376.28,-383.23 368.9,-382.49 370.05,-387.26"/>
+<text text-anchor="middle" x="340.5" y="-412.8" font-family="DejaVu Sans" font-size="9.00">Events / credits</text>
+</g>
+</g>
+</svg>
+</div></section><section id="02_mpu"><h2>2. MPU内部结构</h2><p>W4使用共享激活解码与小整数产品；BF16通用路径用于QK/PV/lm_head。group tree每拍处理8行，8-lane scale为首版。所有不可反压的算术返回先预留credit。</p><div class="canvas"><svg width="2191pt" height="306pt"
+ viewBox="0.00 0.00 2191.00 306.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 288)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-288 2173,-288 2173,18 -18,18"/>
+<g id="clust2" class="cluster">
+<title>cluster_1</title>
+<path fill="white" stroke="#b5c5d6" d="M306.5,-8C306.5,-8 741,-8 741,-8 747,-8 753,-14 753,-20 753,-20 753,-73 753,-73 753,-79 747,-85 741,-85 741,-85 306.5,-85 306.5,-85 300.5,-85 294.5,-79 294.5,-73 294.5,-73 294.5,-20 294.5,-20 294.5,-14 300.5,-8 306.5,-8"/>
+<text text-anchor="middle" x="523.75" y="-69.8" font-family="DejaVu Sans" font-size="14.00">Linear total path</text>
+</g>
+<g id="clust1" class="cluster">
+<title>cluster_0</title>
+<path fill="white" stroke="#b5c5d6" d="M1925,-110C1925,-110 2135,-110 2135,-110 2141,-110 2147,-116 2147,-122 2147,-122 2147,-250 2147,-250 2147,-256 2141,-262 2135,-262 2135,-262 1925,-262 1925,-262 1919,-262 1913,-256 1913,-250 1913,-250 1913,-122 1913,-122 1913,-116 1919,-110 1925,-110"/>
+<text text-anchor="middle" x="2030" y="-246.8" font-family="DejaVu Sans" font-size="14.00">Compute product mode</text>
+</g>
+<!-- cmd -->
+<g id="node1" class="node">
+<title>cmd</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M1518,-87C1518,-87 1434,-87 1434,-87 1428,-87 1422,-81 1422,-75 1422,-75 1422,-61 1422,-61 1422,-55 1428,-49 1434,-49 1434,-49 1518,-49 1518,-49 1524,-49 1530,-55 1530,-61 1530,-61 1530,-75 1530,-75 1530,-81 1524,-87 1518,-87"/>
+<text text-anchor="middle" x="1476" y="-71.2" font-family="DejaVu Sans" font-size="11.00">MpuCmd queue</text>
+<text text-anchor="middle" x="1476" y="-59.2" font-family="DejaVu Sans" font-size="11.00">JobSequencer</text>
+</g>
+<!-- x -->
+<g id="node2" class="node">
+<title>x</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M1800,-146C1800,-146 1648,-146 1648,-146 1642,-146 1636,-140 1636,-134 1636,-134 1636,-108 1636,-108 1636,-102 1642,-96 1648,-96 1648,-96 1800,-96 1800,-96 1806,-96 1812,-102 1812,-108 1812,-108 1812,-134 1812,-134 1812,-140 1806,-146 1800,-146"/>
+<text text-anchor="middle" x="1724" y="-130.2" font-family="DejaVu Sans" font-size="11.00">Activation fetch / broadcast</text>
+<text text-anchor="middle" x="1724" y="-118.2" font-family="DejaVu Sans" font-size="11.00">Decode: 8 x BF16</text>
+<text text-anchor="middle" x="1724" y="-106.2" font-family="DejaVu Sans" font-size="11.00">Prefill: 4 x 8 x BF16</text>
+</g>
+<!-- cmd&#45;&gt;x -->
+<g id="edge1" class="edge">
+<title>cmd&#45;&gt;x</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1530.08,-79.43C1558.82,-85.63 1595.2,-93.47 1628.6,-100.66"/>
+<polygon fill="#936238" stroke="#936238" points="1628.32,-103.11 1635.68,-102.19 1629.35,-98.32 1628.32,-103.11"/>
+<text text-anchor="middle" x="1583" y="-100.8" font-family="DejaVu Sans" font-size="9.00">Fetch indices</text>
+</g>
+<!-- w -->
+<g id="node3" class="node">
+<title>w</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M1795.5,-71C1795.5,-71 1652.5,-71 1652.5,-71 1646.5,-71 1640.5,-65 1640.5,-59 1640.5,-59 1640.5,-47 1640.5,-47 1640.5,-41 1646.5,-35 1652.5,-35 1652.5,-35 1795.5,-35 1795.5,-35 1801.5,-35 1807.5,-41 1807.5,-47 1807.5,-47 1807.5,-59 1807.5,-59 1807.5,-65 1801.5,-71 1795.5,-71"/>
+<text text-anchor="middle" x="1724" y="-50.2" font-family="DejaVu Sans" font-size="11.00">Weight / KV operand fetch</text>
+</g>
+<!-- cmd&#45;&gt;w -->
+<g id="edge2" class="edge">
+<title>cmd&#45;&gt;w</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1530.08,-64.76C1560.01,-62.94 1598.22,-60.61 1632.72,-58.5"/>
+<polygon fill="#936238" stroke="#936238" points="1633.18,-60.93 1640.02,-58.06 1632.88,-56.04 1633.18,-60.93"/>
+<text text-anchor="middle" x="1583" y="-66.8" font-family="DejaVu Sans" font-size="9.00">Layout / mode</text>
+</g>
+<!-- w4 -->
+<g id="node4" class="node">
+<title>w4</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M2127,-231C2127,-231 1933,-231 1933,-231 1927,-231 1921,-225 1921,-219 1921,-219 1921,-193 1921,-193 1921,-187 1927,-181 1933,-181 1933,-181 2127,-181 2127,-181 2133,-181 2139,-187 2139,-193 2139,-193 2139,-219 2139,-219 2139,-225 2133,-231 2127,-231"/>
+<text text-anchor="middle" x="2030" y="-215.2" font-family="DejaVu Sans" font-size="11.00">W4 Product Clusters x16</text>
+<text text-anchor="middle" x="2030" y="-203.2" font-family="DejaVu Sans" font-size="11.00">Shared x decode; m / 3m / 5m / 7m</text>
+<text text-anchor="middle" x="2030" y="-191.2" font-family="DejaVu Sans" font-size="11.00">INT4 select &#45;&gt; FP32</text>
+</g>
+<!-- x&#45;&gt;w4 -->
+<g id="edge3" class="edge">
+<title>x&#45;&gt;w4</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1812.11,-145.36C1849.69,-155.86 1893.78,-168.19 1932.36,-178.98"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1932.09,-181.45 1939.5,-180.97 1933.41,-176.73 1932.09,-181.45"/>
+<text text-anchor="middle" x="1866.5" y="-171.8" font-family="DejaVu Sans" font-size="9.00">Shared x</text>
+</g>
+<!-- bf -->
+<g id="node5" class="node">
+<title>bf</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M2102,-156C2102,-156 1958,-156 1958,-156 1952,-156 1946,-150 1946,-144 1946,-144 1946,-130 1946,-130 1946,-124 1952,-118 1958,-118 1958,-118 2102,-118 2102,-118 2108,-118 2114,-124 2114,-130 2114,-130 2114,-144 2114,-144 2114,-150 2108,-156 2102,-156"/>
+<text text-anchor="middle" x="2030" y="-140.2" font-family="DejaVu Sans" font-size="11.00">BF16 Product Clusters x16</text>
+<text text-anchor="middle" x="2030" y="-128.2" font-family="DejaVu Sans" font-size="11.00">BF16 x BF16 &#45;&gt; FP32</text>
+</g>
+<!-- x&#45;&gt;bf -->
+<g id="edge5" class="edge">
+<title>x&#45;&gt;bf</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1812.11,-125.58C1851.67,-127.67 1898.45,-130.13 1938.42,-132.23"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1938.68,-134.7 1945.8,-132.62 1938.93,-129.81 1938.68,-134.7"/>
+<text text-anchor="middle" x="1866.5" y="-132.8" font-family="DejaVu Sans" font-size="9.00">x</text>
+</g>
+<!-- w&#45;&gt;w4 -->
+<g id="edge4" class="edge">
+<title>w&#45;&gt;w4</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1807.51,-62.13C1840.93,-69.95 1877.19,-84.39 1901,-111 1918.26,-130.29 1895.72,-148.72 1913,-168 1915.74,-171.06 1918.73,-173.87 1921.92,-176.46"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1920.77,-178.66 1927.85,-180.87 1923.7,-174.73 1920.77,-178.66"/>
+<text text-anchor="middle" x="1866.5" y="-113.8" font-family="DejaVu Sans" font-size="9.00">Packed q</text>
+</g>
+<!-- w&#45;&gt;bf -->
+<g id="edge6" class="edge">
+<title>w&#45;&gt;bf</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1807.91,-43.93C1837.8,-43.14 1871.43,-45.16 1901,-54 1939.76,-65.59 1977.84,-92.9 2002.25,-113.04"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="2000.91,-115.12 2007.85,-117.74 2004.06,-111.36 2000.91,-115.12"/>
+<text text-anchor="middle" x="1866.5" y="-56.8" font-family="DejaVu Sans" font-size="9.00">BF16 operands</text>
+</g>
+<!-- dot -->
+<g id="node6" class="node">
+<title>dot</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M164,-203C164,-203 12,-203 12,-203 6,-203 0,-197 0,-191 0,-191 0,-177 0,-177 0,-171 6,-165 12,-165 12,-165 164,-165 164,-165 170,-165 176,-171 176,-177 176,-177 176,-191 176,-191 176,-197 170,-203 164,-203"/>
+<text text-anchor="middle" x="88" y="-187.2" font-family="DejaVu Sans" font-size="11.00">DOT8 x128</text>
+<text text-anchor="middle" x="88" y="-175.2" font-family="DejaVu Sans" font-size="11.00">4 + 2 + 1 FP32 ADD per tile</text>
+</g>
+<!-- w4&#45;&gt;dot -->
+<g id="edge7" class="edge">
+<title>w4&#45;&gt;dot</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1920.9,-221.35C1862.94,-228.31 1790.21,-235 1725,-235 377,-235 377,-235 377,-235 303.93,-235 222.01,-218.89 164.27,-204.77"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="164.74,-202.36 157.35,-203.06 163.56,-207.12 164.74,-202.36"/>
+<text text-anchor="middle" x="1115.5" y="-237.8" font-family="DejaVu Sans" font-size="9.00">W4 mode</text>
+</g>
+<!-- bf&#45;&gt;dot -->
+<g id="edge8" class="edge">
+<title>bf&#45;&gt;dot</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1945.62,-151.1C1856.41,-164.95 1710.63,-184 1584,-184 377,-184 377,-184 377,-184 312.39,-184 239.62,-184 183.4,-184"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="183.28,-181.55 176.28,-184 183.28,-186.45 183.28,-181.55"/>
+<text text-anchor="middle" x="1115.5" y="-186.8" font-family="DejaVu Sans" font-size="9.00">BF16 mode</text>
+</g>
+<!-- gs -->
+<g id="node7" class="node">
+<title>gs</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M455,-146C455,-146 301,-146 301,-146 295,-146 289,-140 289,-134 289,-134 289,-108 289,-108 289,-102 295,-96 301,-96 301,-96 455,-96 455,-96 461,-96 467,-102 467,-108 467,-108 467,-134 467,-134 467,-140 461,-146 455,-146"/>
+<text text-anchor="middle" x="378" y="-130.2" font-family="DejaVu Sans" font-size="11.00">GroupCollector / GroupStore</text>
+<text text-anchor="middle" x="378" y="-118.2" font-family="DejaVu Sans" font-size="11.00">2 x 128 rows x 16 DOT</text>
+<text text-anchor="middle" x="378" y="-106.2" font-family="DejaVu Sans" font-size="11.00">16 KiB logical storage</text>
+</g>
+<!-- dot&#45;&gt;gs -->
+<g id="edge9" class="edge">
+<title>dot&#45;&gt;gs</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M156.15,-164.93C169.32,-161.44 183.06,-157.97 196,-155 223.73,-148.65 254.04,-142.61 281.79,-137.42"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="282.36,-139.81 288.79,-136.13 281.46,-134.99 282.36,-139.81"/>
+<text text-anchor="middle" x="232.5" y="-157.8" font-family="DejaVu Sans" font-size="9.00">128 DOT results</text>
+</g>
+<!-- tree -->
+<g id="node8" class="node">
+<title>tree</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M731,-143C731,-143 597,-143 597,-143 591,-143 585,-137 585,-131 585,-131 585,-105 585,-105 585,-99 591,-93 597,-93 597,-93 731,-93 731,-93 737,-93 743,-99 743,-105 743,-105 743,-131 743,-131 743,-137 737,-143 731,-143"/>
+<text text-anchor="middle" x="664" y="-127.2" font-family="DejaVu Sans" font-size="11.00">Group16 tree</text>
+<text text-anchor="middle" x="664" y="-115.2" font-family="DejaVu Sans" font-size="11.00">8 rows/cycle</text>
+<text text-anchor="middle" x="664" y="-103.2" font-family="DejaVu Sans" font-size="11.00">64 &#45;&gt; 32 &#45;&gt; 16 &#45;&gt; 8 ADD</text>
+</g>
+<!-- gs&#45;&gt;tree -->
+<g id="edge10" class="edge">
+<title>gs&#45;&gt;tree</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M467.3,-120.07C502.42,-119.7 542.67,-119.27 577.51,-118.9"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="577.88,-121.35 584.85,-118.83 577.83,-116.45 577.88,-121.35"/>
+<text text-anchor="middle" x="525" y="-122.8" font-family="DejaVu Sans" font-size="9.00">8 rows x 16 DOT</text>
+</g>
+<!-- scale -->
+<g id="node9" class="node">
+<title>scale</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M441.5,-54C441.5,-54 314.5,-54 314.5,-54 308.5,-54 302.5,-48 302.5,-42 302.5,-42 302.5,-28 302.5,-28 302.5,-22 308.5,-16 314.5,-16 314.5,-16 441.5,-16 441.5,-16 447.5,-16 453.5,-22 453.5,-28 453.5,-28 453.5,-42 453.5,-42 453.5,-48 447.5,-54 441.5,-54"/>
+<text text-anchor="middle" x="378" y="-38.2" font-family="DejaVu Sans" font-size="11.00">ScaleApply x8</text>
+<text text-anchor="middle" x="378" y="-26.2" font-family="DejaVu Sans" font-size="11.00">FP32 groupSum x scale</text>
+</g>
+<!-- tree&#45;&gt;scale -->
+<g id="edge11" class="edge">
+<title>tree&#45;&gt;scale</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M584.76,-95.13C542.91,-82.9 491.72,-67.94 450.88,-56.01"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="451.56,-53.65 444.16,-54.04 450.19,-58.36 451.56,-53.65"/>
+<text text-anchor="middle" x="525" y="-89.8" font-family="DejaVu Sans" font-size="9.00">GroupBatch</text>
+</g>
+<!-- out -->
+<g id="node11" class="node">
+<title>out</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1047,-87C1047,-87 889,-87 889,-87 883,-87 877,-81 877,-75 877,-75 877,-61 877,-61 877,-55 883,-49 889,-49 889,-49 1047,-49 1047,-49 1053,-49 1059,-55 1059,-61 1059,-61 1059,-75 1059,-75 1059,-81 1053,-87 1047,-87"/>
+<text text-anchor="middle" x="968" y="-71.2" font-family="DejaVu Sans" font-size="11.00">ResultEmitter / credit buffers</text>
+<text text-anchor="middle" x="968" y="-59.2" font-family="DejaVu Sans" font-size="11.00">32 elements/beat</text>
+</g>
+<!-- tree&#45;&gt;out -->
+<g id="edge14" class="edge">
+<title>tree&#45;&gt;out</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M743.17,-105.06C781.82,-98.66 828.86,-90.87 869.82,-84.09"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="870.36,-86.48 876.86,-82.92 869.56,-81.65 870.36,-86.48"/>
+<text text-anchor="middle" x="811" y="-103.8" font-family="DejaVu Sans" font-size="9.00">QK / PV group result</text>
+</g>
+<!-- total -->
+<g id="node10" class="node">
+<title>total</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M733,-54C733,-54 595,-54 595,-54 589,-54 583,-48 583,-42 583,-42 583,-28 583,-28 583,-22 589,-16 595,-16 595,-16 733,-16 733,-16 739,-16 745,-22 745,-28 745,-28 745,-42 745,-42 745,-48 739,-54 733,-54"/>
+<text text-anchor="middle" x="664" y="-38.2" font-family="DejaVu Sans" font-size="11.00">TotalAccumulator</text>
+<text text-anchor="middle" x="664" y="-26.2" font-family="DejaVu Sans" font-size="11.00">8&#45;bank store + FP32 ADD</text>
+</g>
+<!-- scale&#45;&gt;total -->
+<g id="edge13" class="edge">
+<title>scale&#45;&gt;total</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M453.62,-35C491.06,-35 536.64,-35 575.7,-35"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="575.91,-37.45 582.91,-35 575.91,-32.55 575.91,-37.45"/>
+<text text-anchor="middle" x="525" y="-37.8" font-family="DejaVu Sans" font-size="9.00">W4 / linear</text>
+</g>
+<!-- total&#45;&gt;out -->
+<g id="edge15" class="edge">
+<title>total&#45;&gt;out</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M745.14,-43.76C783.3,-47.93 829.28,-52.95 869.46,-57.34"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="869.66,-59.83 876.89,-58.15 870.2,-54.96 869.66,-59.83"/>
+<text text-anchor="middle" x="811" y="-58.8" font-family="DejaVu Sans" font-size="9.00">Final linear result</text>
+</g>
+<!-- complete -->
+<g id="node13" class="node">
+<title>complete</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M1285,-86C1285,-86 1184,-86 1184,-86 1178,-86 1172,-80 1172,-74 1172,-74 1172,-62 1172,-62 1172,-56 1178,-50 1184,-50 1184,-50 1285,-50 1285,-50 1291,-50 1297,-56 1297,-62 1297,-62 1297,-74 1297,-74 1297,-80 1291,-86 1285,-86"/>
+<text text-anchor="middle" x="1234.5" y="-65.2" font-family="DejaVu Sans" font-size="11.00">CompletionTracker</text>
+</g>
+<!-- out&#45;&gt;complete -->
+<g id="edge16" class="edge">
+<title>out&#45;&gt;complete</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1059.29,-68C1093.79,-68 1132.55,-68 1164.73,-68"/>
+<polygon fill="#936238" stroke="#936238" points="1164.91,-70.45 1171.91,-68 1164.91,-65.55 1164.91,-70.45"/>
+<text text-anchor="middle" x="1115.5" y="-70.8" font-family="DejaVu Sans" font-size="9.00">Destination ACK</text>
+</g>
+<!-- meta -->
+<g id="node12" class="node">
+<title>meta</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M161,-53C161,-53 15,-53 15,-53 9,-53 3,-47 3,-41 3,-41 3,-29 3,-29 3,-23 9,-17 15,-17 15,-17 161,-17 161,-17 167,-17 173,-23 173,-29 173,-29 173,-41 173,-41 173,-47 167,-53 161,-53"/>
+<text text-anchor="middle" x="88" y="-32.2" font-family="DejaVu Sans" font-size="11.00">Scale cache / masks / tags</text>
+</g>
+<!-- meta&#45;&gt;scale -->
+<g id="edge12" class="edge">
+<title>meta&#45;&gt;scale</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M173.08,-35C211.53,-35 256.91,-35 295.1,-35"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="295.14,-37.45 302.14,-35 295.14,-32.55 295.14,-37.45"/>
+<text text-anchor="middle" x="232.5" y="-37.8" font-family="DejaVu Sans" font-size="9.00">Aligned scales</text>
+</g>
+<!-- complete&#45;&gt;cmd -->
+<g id="edge17" class="edge">
+<title>complete&#45;&gt;cmd</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1297.18,-68C1333.3,-68 1378.72,-68 1414.62,-68"/>
+<polygon fill="#936238" stroke="#936238" points="1414.67,-70.45 1421.67,-68 1414.67,-65.55 1414.67,-70.45"/>
+<text text-anchor="middle" x="1359.5" y="-70.8" font-family="DejaVu Sans" font-size="9.00">Done / fault / drain</text>
+</g>
+</g>
+</svg>
+</div></section><section id="03_w4"><h2>3. W4产品单元与计算映射</h2><p>同一BF16激活可被多个INT4权重复用。系数在扩展整数尾数域生成，不先舍入为BF16；最终形成FP32产品。该结构仍采用延迟scale数值模式。</p><div class="canvas"><svg width="1477pt" height="260pt"
+ viewBox="0.00 0.00 1477.00 260.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 242)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-242 1459,-242 1459,18 -18,18"/>
+<!-- x -->
+<g id="node1" class="node">
+<title>x</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M107,-190C107,-190 12,-190 12,-190 6,-190 0,-184 0,-178 0,-178 0,-166 0,-166 0,-160 6,-154 12,-154 12,-154 107,-154 107,-154 113,-154 119,-160 119,-166 119,-166 119,-178 119,-178 119,-184 113,-190 107,-190"/>
+<text text-anchor="middle" x="59.5" y="-169.2" font-family="DejaVu Sans" font-size="11.00">BF16 activation x</text>
+</g>
+<!-- dec -->
+<g id="node2" class="node">
+<title>dec</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M317,-191C317,-191 172,-191 172,-191 166,-191 160,-185 160,-179 160,-179 160,-165 160,-165 160,-159 166,-153 172,-153 172,-153 317,-153 317,-153 323,-153 329,-159 329,-165 329,-165 329,-179 329,-179 329,-185 323,-191 317,-191"/>
+<text text-anchor="middle" x="244.5" y="-175.2" font-family="DejaVu Sans" font-size="11.00">Classify / sign / exponent</text>
+<text text-anchor="middle" x="244.5" y="-163.2" font-family="DejaVu Sans" font-size="11.00">Normalize 8&#45;bit significand</text>
+</g>
+<!-- x&#45;&gt;dec -->
+<g id="edge1" class="edge">
+<title>x&#45;&gt;dec</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M119.16,-172C129.89,-172 141.32,-172 152.74,-172"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="152.84,-174.45 159.84,-172 152.84,-169.55 152.84,-174.45"/>
+</g>
+<!-- coeff -->
+<g id="node3" class="node">
+<title>coeff</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M656,-224C656,-224 510,-224 510,-224 504,-224 498,-218 498,-212 498,-212 498,-198 498,-198 498,-192 504,-186 510,-186 510,-186 656,-186 656,-186 662,-186 668,-192 668,-198 668,-198 668,-212 668,-212 668,-218 662,-224 656,-224"/>
+<text text-anchor="middle" x="583" y="-208.2" font-family="DejaVu Sans" font-size="11.00">Shared integer coefficients</text>
+<text text-anchor="middle" x="583" y="-196.2" font-family="DejaVu Sans" font-size="11.00">m, 3m, 5m, 7m</text>
+</g>
+<!-- dec&#45;&gt;coeff -->
+<g id="edge2" class="edge">
+<title>dec&#45;&gt;coeff</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M329.11,-180.2C378.28,-185.02 440.5,-191.12 490.91,-196.07"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="490.74,-198.51 497.94,-196.76 491.22,-193.64 490.74,-198.51"/>
+<text text-anchor="middle" x="406.5" y="-195.8" font-family="DejaVu Sans" font-size="9.00">Exact extended mantissa</text>
+</g>
+<!-- sel -->
+<g id="node5" class="node">
+<title>sel</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1012,-135C1012,-135 839,-135 839,-135 833,-135 827,-129 827,-123 827,-123 827,-109 827,-109 827,-103 833,-97 839,-97 839,-97 1012,-97 1012,-97 1018,-97 1024,-103 1024,-109 1024,-109 1024,-123 1024,-123 1024,-129 1018,-135 1012,-135"/>
+<text text-anchor="middle" x="925.5" y="-119.2" font-family="DejaVu Sans" font-size="11.00">P parallel select / shift lanes</text>
+<text text-anchor="middle" x="925.5" y="-107.2" font-family="DejaVu Sans" font-size="11.00">Sign XOR / zero / special values</text>
+</g>
+<!-- dec&#45;&gt;sel -->
+<g id="edge5" class="edge">
+<title>dec&#45;&gt;sel</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M329.1,-165.11C452.9,-154.89 684.84,-135.77 819.79,-124.64"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="820.17,-127.06 826.94,-124.05 819.76,-122.18 820.17,-127.06"/>
+<text text-anchor="middle" x="583" y="-154.8" font-family="DejaVu Sans" font-size="9.00">Sign / exponent / class</text>
+</g>
+<!-- coeff&#45;&gt;sel -->
+<g id="edge3" class="edge">
+<title>coeff&#45;&gt;sel</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M668.09,-197.34C710.38,-192.1 762.07,-183.56 807,-170 833.31,-162.06 861.33,-149.36 883.4,-138.28"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="884.62,-140.4 889.76,-135.05 882.4,-136.03 884.62,-140.4"/>
+<text text-anchor="middle" x="754.5" y="-194.8" font-family="DejaVu Sans" font-size="9.00">Local cluster broadcast</text>
+</g>
+<!-- q -->
+<g id="node4" class="node">
+<title>q</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M643.5,-101C643.5,-101 522.5,-101 522.5,-101 516.5,-101 510.5,-95 510.5,-89 510.5,-89 510.5,-75 510.5,-75 510.5,-69 516.5,-63 522.5,-63 522.5,-63 643.5,-63 643.5,-63 649.5,-63 655.5,-69 655.5,-75 655.5,-75 655.5,-89 655.5,-89 655.5,-95 649.5,-101 643.5,-101"/>
+<text text-anchor="middle" x="583" y="-85.2" font-family="DejaVu Sans" font-size="11.00">INT4 weights q[0..P&#45;1]</text>
+<text text-anchor="middle" x="583" y="-73.2" font-family="DejaVu Sans" font-size="11.00">Signed &#45;8..7</text>
+</g>
+<!-- q&#45;&gt;sel -->
+<g id="edge4" class="edge">
+<title>q&#45;&gt;sel</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M655.8,-89.17C703.41,-93.92 766.68,-100.24 819.87,-105.55"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="819.76,-108 826.97,-106.26 820.25,-103.13 819.76,-108"/>
+<text text-anchor="middle" x="754.5" y="-107.8" font-family="DejaVu Sans" font-size="9.00">Coefficient selection</text>
+</g>
+<!-- fp -->
+<g id="node6" class="node">
+<title>fp</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1232,-135C1232,-135 1077,-135 1077,-135 1071,-135 1065,-129 1065,-123 1065,-123 1065,-109 1065,-109 1065,-103 1071,-97 1077,-97 1077,-97 1232,-97 1232,-97 1238,-97 1244,-103 1244,-109 1244,-109 1244,-123 1244,-123 1244,-129 1238,-135 1232,-135"/>
+<text text-anchor="middle" x="1154.5" y="-119.2" font-family="DejaVu Sans" font-size="11.00">P FP32 products</text>
+<text text-anchor="middle" x="1154.5" y="-107.2" font-family="DejaVu Sans" font-size="11.00">Normalize / exponent adjust</text>
+</g>
+<!-- sel&#45;&gt;fp -->
+<g id="edge6" class="edge">
+<title>sel&#45;&gt;fp</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1024.09,-116C1035.22,-116 1046.57,-116 1057.69,-116"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1057.95,-118.45 1064.95,-116 1057.95,-113.55 1057.95,-118.45"/>
+</g>
+<!-- dot -->
+<g id="node8" class="node">
+<title>dot</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1429,-134C1429,-134 1297,-134 1297,-134 1291,-134 1285,-128 1285,-122 1285,-122 1285,-110 1285,-110 1285,-104 1291,-98 1297,-98 1297,-98 1429,-98 1429,-98 1435,-98 1441,-104 1441,-110 1441,-110 1441,-122 1441,-122 1441,-128 1435,-134 1429,-134"/>
+<text text-anchor="middle" x="1363" y="-113.2" font-family="DejaVu Sans" font-size="11.00">DOT8 / group128 / scale</text>
+</g>
+<!-- fp&#45;&gt;dot -->
+<g id="edge7" class="edge">
+<title>fp&#45;&gt;dot</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1244.27,-116C1255.39,-116 1266.74,-116 1277.79,-116"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1278,-118.45 1285,-116 1278,-113.55 1278,-118.45"/>
+</g>
+<!-- map -->
+<g id="node7" class="node">
+<title>map</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M670,-38C670,-38 496,-38 496,-38 490,-38 484,-32 484,-26 484,-26 484,-12 484,-12 484,-6 490,0 496,0 496,0 670,0 670,0 676,0 682,-6 682,-12 682,-12 682,-26 682,-26 682,-32 676,-38 670,-38"/>
+<text text-anchor="middle" x="583" y="-22.2" font-family="DejaVu Sans" font-size="11.00">Decode: 128 output rows x K8</text>
+<text text-anchor="middle" x="583" y="-10.2" font-family="DejaVu Sans" font-size="11.00">Prefill: 4 queries x 32 rows x K8</text>
+</g>
+<!-- map&#45;&gt;sel -->
+<g id="edge8" class="edge">
+<title>map&#45;&gt;sel</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M660.15,-38.06C703.37,-49.15 758.39,-63.72 807,-78 824.52,-83.15 843.4,-89.08 860.78,-94.7"/>
+<polygon fill="#936238" stroke="#936238" points="860.2,-97.09 867.62,-96.92 861.72,-92.43 860.2,-97.09"/>
+<text text-anchor="middle" x="754.5" y="-80.8" font-family="DejaVu Sans" font-size="9.00">Index / mask / tag</text>
+</g>
+</g>
+</svg>
+</div></section><section id="04_vpu"><h2>4. VPU内部结构</h2><p>32个物理lane；MUL、ADD/compare、归约与SFU为独立资源。原始gate/up等数据保存在对齐缓冲，标量阶段有独立进展通路。</p><div class="canvas"><svg width="1954pt" height="284pt"
+ viewBox="0.00 0.00 1954.00 284.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 266)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-266 1936,-266 1936,18 -18,18"/>
+<!-- cmd -->
+<g id="node1" class="node">
+<title>cmd</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M460,-121C460,-121 321,-121 321,-121 315,-121 309,-115 309,-109 309,-109 309,-95 309,-95 309,-89 315,-83 321,-83 321,-83 460,-83 460,-83 466,-83 472,-89 472,-95 472,-95 472,-109 472,-109 472,-115 466,-121 460,-121"/>
+<text text-anchor="middle" x="390.5" y="-105.2" font-family="DejaVu Sans" font-size="11.00">VpuCmd queue</text>
+<text text-anchor="middle" x="390.5" y="-93.2" font-family="DejaVu Sans" font-size="11.00">OpController / phase FSM</text>
+</g>
+<!-- read -->
+<g id="node2" class="node">
+<title>read</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M763,-183C763,-183 611,-183 611,-183 605,-183 599,-177 599,-171 599,-171 599,-157 599,-157 599,-151 605,-145 611,-145 611,-145 763,-145 763,-145 769,-145 775,-151 775,-157 775,-157 775,-171 775,-171 775,-177 769,-183 763,-183"/>
+<text text-anchor="middle" x="687" y="-167.2" font-family="DejaVu Sans" font-size="11.00">VectorReadEngine</text>
+<text text-anchor="middle" x="687" y="-155.2" font-family="DejaVu Sans" font-size="11.00">Bank checks / BF16 &#45;&gt; FP32</text>
+</g>
+<!-- cmd&#45;&gt;read -->
+<g id="edge1" class="edge">
+<title>cmd&#45;&gt;read</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M472.36,-119.02C509.31,-126.8 553.32,-136.07 591.76,-144.16"/>
+<polygon fill="#936238" stroke="#936238" points="591.51,-146.61 598.87,-145.66 592.52,-141.82 591.51,-146.61"/>
+<text text-anchor="middle" x="535.5" y="-143.8" font-family="DejaVu Sans" font-size="9.00">Addresses / phases</text>
+</g>
+<!-- mul -->
+<g id="node4" class="node">
+<title>mul</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1269.5,-153C1269.5,-153 1233.5,-153 1233.5,-153 1227.5,-153 1221.5,-147 1221.5,-141 1221.5,-141 1221.5,-127 1221.5,-127 1221.5,-121 1227.5,-115 1233.5,-115 1233.5,-115 1269.5,-115 1269.5,-115 1275.5,-115 1281.5,-121 1281.5,-127 1281.5,-127 1281.5,-141 1281.5,-141 1281.5,-147 1275.5,-153 1269.5,-153"/>
+<text text-anchor="middle" x="1251.5" y="-137.2" font-family="DejaVu Sans" font-size="11.00">MUL32</text>
+<text text-anchor="middle" x="1251.5" y="-125.2" font-family="DejaVu Sans" font-size="11.00">FP32</text>
+</g>
+<!-- cmd&#45;&gt;mul -->
+<g id="edge14" class="edge">
+<title>cmd&#45;&gt;mul</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M472.31,-105.01C653.31,-111.75 1085.42,-127.85 1213.88,-132.64"/>
+<polygon fill="#936238" stroke="#936238" points="1214.11,-135.1 1221.19,-132.91 1214.29,-130.2 1214.11,-135.1"/>
+<text text-anchor="middle" x="824.5" y="-122.8" font-family="DejaVu Sans" font-size="9.00">Issue / credit</text>
+</g>
+<!-- add -->
+<g id="node5" class="node">
+<title>add</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1321.5,-86C1321.5,-86 1181.5,-86 1181.5,-86 1175.5,-86 1169.5,-80 1169.5,-74 1169.5,-74 1169.5,-62 1169.5,-62 1169.5,-56 1175.5,-50 1181.5,-50 1181.5,-50 1321.5,-50 1321.5,-50 1327.5,-50 1333.5,-56 1333.5,-62 1333.5,-62 1333.5,-74 1333.5,-74 1333.5,-80 1327.5,-86 1321.5,-86"/>
+<text text-anchor="middle" x="1251.5" y="-65.2" font-family="DejaVu Sans" font-size="11.00">ADD / compare / select32</text>
+</g>
+<!-- cmd&#45;&gt;add -->
+<g id="edge15" class="edge">
+<title>cmd&#45;&gt;add</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M472.31,-98.8C633.63,-92.42 994.44,-78.13 1161.94,-71.51"/>
+<polygon fill="#936238" stroke="#936238" points="1162.38,-73.94 1169.28,-71.21 1162.18,-69.04 1162.38,-73.94"/>
+<text text-anchor="middle" x="824.5" y="-88.8" font-family="DejaVu Sans" font-size="9.00">Issue / credit</text>
+</g>
+<!-- sfu -->
+<g id="node7" class="node">
+<title>sfu</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1328,-218C1328,-218 1175,-218 1175,-218 1169,-218 1163,-212 1163,-206 1163,-206 1163,-192 1163,-192 1163,-186 1169,-180 1175,-180 1175,-180 1328,-180 1328,-180 1334,-180 1340,-186 1340,-192 1340,-192 1340,-206 1340,-206 1340,-212 1334,-218 1328,-218"/>
+<text text-anchor="middle" x="1251.5" y="-202.2" font-family="DejaVu Sans" font-size="11.00">SFU32 shared request array</text>
+<text text-anchor="middle" x="1251.5" y="-190.2" font-family="DejaVu Sans" font-size="11.00">EXP / RECIP / RSQRT</text>
+</g>
+<!-- cmd&#45;&gt;sfu -->
+<g id="edge16" class="edge">
+<title>cmd&#45;&gt;sfu</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M422.79,-121.01C462.23,-143.8 532.89,-180.83 599,-196 807.37,-243.8 865.23,-225.44 1079,-227 1107.44,-227.21 1114.79,-230.61 1143,-227 1155.59,-225.39 1168.81,-222.75 1181.51,-219.73"/>
+<polygon fill="#936238" stroke="#936238" points="1182.28,-222.06 1188.5,-218.01 1181.12,-217.3 1182.28,-222.06"/>
+<text text-anchor="middle" x="824.5" y="-231.8" font-family="DejaVu Sans" font-size="9.00">Issue / credit</text>
+</g>
+<!-- align -->
+<g id="node3" class="node">
+<title>align</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M1047,-211C1047,-211 886,-211 886,-211 880,-211 874,-205 874,-199 874,-199 874,-185 874,-185 874,-179 880,-173 886,-173 886,-173 1047,-173 1047,-173 1053,-173 1059,-179 1059,-185 1059,-185 1059,-199 1059,-199 1059,-205 1053,-211 1047,-211"/>
+<text text-anchor="middle" x="966.5" y="-195.2" font-family="DejaVu Sans" font-size="11.00">OperandAligner</text>
+<text text-anchor="middle" x="966.5" y="-183.2" font-family="DejaVu Sans" font-size="11.00">Chunk scratch / bypass FIFOs</text>
+</g>
+<!-- read&#45;&gt;align -->
+<g id="edge2" class="edge">
+<title>read&#45;&gt;align</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M775.04,-172.78C804.18,-175.72 836.86,-179.02 866.82,-182.04"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="866.76,-184.5 873.97,-182.76 867.25,-179.62 866.76,-184.5"/>
+<text text-anchor="middle" x="824.5" y="-182.8" font-family="DejaVu Sans" font-size="9.00">VecBeat32</text>
+</g>
+<!-- align&#45;&gt;mul -->
+<g id="edge3" class="edge">
+<title>align&#45;&gt;mul</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1059.38,-173.17C1112.1,-162.36 1175.35,-149.4 1214.23,-141.43"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1214.83,-143.81 1221.2,-140.01 1213.85,-139.01 1214.83,-143.81"/>
+</g>
+<!-- align&#45;&gt;add -->
+<g id="edge4" class="edge">
+<title>align&#45;&gt;add</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1007.25,-172.84C1046.53,-154.11 1108.48,-125.12 1163,-102 1173.56,-97.52 1184.93,-92.94 1195.86,-88.64"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1196.98,-90.84 1202.6,-86.01 1195.19,-86.27 1196.98,-90.84"/>
+</g>
+<!-- align&#45;&gt;sfu -->
+<g id="edge5" class="edge">
+<title>align&#45;&gt;sfu</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1059.27,-206.22C1065.93,-206.93 1072.56,-207.54 1079,-208 1107.37,-210.03 1114.58,-209.19 1143,-208 1147.14,-207.83 1151.36,-207.62 1155.62,-207.38"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1155.99,-209.81 1162.83,-206.95 1155.7,-204.92 1155.99,-209.81"/>
+</g>
+<!-- reduce -->
+<g id="node6" class="node">
+<title>reduce</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1652,-201C1652,-201 1491,-201 1491,-201 1485,-201 1479,-195 1479,-189 1479,-189 1479,-163 1479,-163 1479,-157 1485,-151 1491,-151 1491,-151 1652,-151 1652,-151 1658,-151 1664,-157 1664,-163 1664,-163 1664,-189 1664,-189 1664,-195 1658,-201 1652,-201"/>
+<text text-anchor="middle" x="1571.5" y="-185.2" font-family="DejaVu Sans" font-size="11.00">SegmentReducer32</text>
+<text text-anchor="middle" x="1571.5" y="-173.2" font-family="DejaVu Sans" font-size="11.00">SUM / MAX / ARGMAX</text>
+<text text-anchor="middle" x="1571.5" y="-161.2" font-family="DejaVu Sans" font-size="11.00">Partial store + final reduction</text>
+</g>
+<!-- mul&#45;&gt;reduce -->
+<g id="edge6" class="edge">
+<title>mul&#45;&gt;reduce</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1281.56,-137.84C1324.24,-143.48 1405.92,-154.26 1471.57,-162.93"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1471.42,-165.39 1478.68,-163.87 1472.06,-160.53 1471.42,-165.39"/>
+<text text-anchor="middle" x="1409.5" y="-164.8" font-family="DejaVu Sans" font-size="9.00">Squares / products</text>
+</g>
+<!-- write -->
+<g id="node9" class="node">
+<title>write</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M1642,-64C1642,-64 1501,-64 1501,-64 1495,-64 1489,-58 1489,-52 1489,-52 1489,-38 1489,-38 1489,-32 1495,-26 1501,-26 1501,-26 1642,-26 1642,-26 1648,-26 1654,-32 1654,-38 1654,-38 1654,-52 1654,-52 1654,-58 1648,-64 1642,-64"/>
+<text text-anchor="middle" x="1571.5" y="-48.2" font-family="DejaVu Sans" font-size="11.00">Cast / VectorWriteEngine</text>
+<text text-anchor="middle" x="1571.5" y="-36.2" font-family="DejaVu Sans" font-size="11.00">BF16 or FP32 + write ACK</text>
+</g>
+<!-- mul&#45;&gt;write -->
+<g id="edge11" class="edge">
+<title>mul&#45;&gt;write</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1281.5,-131.69C1322.02,-127.88 1397.52,-118.66 1459,-99 1483.88,-91.05 1510.24,-78.49 1531.09,-67.48"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1532.35,-69.58 1537.37,-64.12 1530.04,-65.26 1532.35,-69.58"/>
+</g>
+<!-- add&#45;&gt;reduce -->
+<g id="edge7" class="edge">
+<title>add&#45;&gt;reduce</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1313.37,-86.06C1354.67,-98.58 1410.4,-116 1459,-133 1472.63,-137.77 1487.09,-143.12 1500.93,-148.39"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1500.25,-150.76 1507.66,-150.97 1502,-146.18 1500.25,-150.76"/>
+<text text-anchor="middle" x="1409.5" y="-135.8" font-family="DejaVu Sans" font-size="9.00">MAX / SUM inputs</text>
+</g>
+<!-- add&#45;&gt;write -->
+<g id="edge12" class="edge">
+<title>add&#45;&gt;write</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1333.57,-62.14C1378.81,-58.86 1435.24,-54.78 1481.68,-51.42"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1481.95,-53.86 1488.75,-50.91 1481.59,-48.97 1481.95,-53.86"/>
+</g>
+<!-- scalar -->
+<g id="node8" class="node">
+<title>scalar</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M1906,-248C1906,-248 1791,-248 1791,-248 1785,-248 1779,-242 1779,-236 1779,-236 1779,-222 1779,-222 1779,-216 1785,-210 1791,-210 1791,-210 1906,-210 1906,-210 1912,-210 1918,-216 1918,-222 1918,-222 1918,-236 1918,-236 1918,-242 1912,-248 1906,-248"/>
+<text text-anchor="middle" x="1848.5" y="-232.2" font-family="DejaVu Sans" font-size="11.00">ScalarUnit / registers</text>
+<text text-anchor="middle" x="1848.5" y="-220.2" font-family="DejaVu Sans" font-size="11.00">eps, r, alpha, m, l</text>
+</g>
+<!-- reduce&#45;&gt;scalar -->
+<g id="edge9" class="edge">
+<title>reduce&#45;&gt;scalar</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1664.07,-193.65C1699.08,-200.4 1738.58,-208.01 1771.93,-214.44"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1771.61,-216.87 1778.95,-215.79 1772.54,-212.06 1771.61,-216.87"/>
+<text text-anchor="middle" x="1721.5" y="-213.8" font-family="DejaVu Sans" font-size="9.00">Segment results</text>
+</g>
+<!-- sfu&#45;&gt;align -->
+<g id="edge13" class="edge">
+<title>sfu&#45;&gt;align</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1162.93,-196.83C1132.37,-196.08 1097.87,-195.22 1066.45,-194.45"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1066.44,-192 1059.38,-194.27 1066.32,-196.9 1066.44,-192"/>
+<text text-anchor="middle" x="1111" y="-198.8" font-family="DejaVu Sans" font-size="9.00">Tagged return</text>
+</g>
+<!-- sfu&#45;&gt;reduce -->
+<g id="edge8" class="edge">
+<title>sfu&#45;&gt;reduce</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1340.24,-192.65C1380.99,-189.71 1429.62,-186.19 1471.66,-183.15"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1472.09,-185.57 1478.89,-182.63 1471.73,-180.69 1472.09,-185.57"/>
+<text text-anchor="middle" x="1409.5" y="-192.8" font-family="DejaVu Sans" font-size="9.00">FP32 probability</text>
+</g>
+<!-- scalar&#45;&gt;align -->
+<g id="edge10" class="edge">
+<title>scalar&#45;&gt;align</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1778.99,-230.41C1655.74,-232.68 1388.43,-236.36 1163,-231 1125.63,-230.11 1115.8,-233.54 1079,-227 1061.19,-223.83 1042.26,-218.63 1025.15,-213.19"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1025.85,-210.84 1018.44,-211.01 1024.34,-215.5 1025.85,-210.84"/>
+<text text-anchor="middle" x="1409.5" y="-235.8" font-family="DejaVu Sans" font-size="9.00">Broadcast / constants</text>
+</g>
+<!-- write&#45;&gt;cmd -->
+<g id="edge18" class="edge">
+<title>write&#45;&gt;cmd</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1488.92,-27.02C1424.95,-14.49 1333.49,0 1252.5,0 686,0 686,0 686,0 589.81,0 485.2,-49.19 430.25,-79.25"/>
+<polygon fill="#936238" stroke="#936238" points="428.73,-77.28 423.79,-82.81 431.11,-81.57 428.73,-77.28"/>
+<text text-anchor="middle" x="966.5" y="-2.8" font-family="DejaVu Sans" font-size="9.00">Completion ACK</text>
+</g>
+<!-- acu -->
+<g id="node10" class="node">
+<title>acu</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M188,-121C188,-121 12,-121 12,-121 6,-121 0,-115 0,-109 0,-109 0,-95 0,-95 0,-89 6,-83 12,-83 12,-83 188,-83 188,-83 194,-83 200,-89 200,-95 200,-95 200,-109 200,-109 200,-115 194,-121 188,-121"/>
+<text text-anchor="middle" x="100" y="-105.2" font-family="DejaVu Sans" font-size="11.00">Acu resource requests</text>
+<text text-anchor="middle" x="100" y="-93.2" font-family="DejaVu Sans" font-size="11.00">Score / probability / online state</text>
+</g>
+<!-- acu&#45;&gt;cmd -->
+<g id="edge17" class="edge">
+<title>acu&#45;&gt;cmd</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M200.29,-102C233.17,-102 269.51,-102 301.49,-102"/>
+<polygon fill="#936238" stroke="#936238" points="301.67,-104.45 308.67,-102 301.67,-99.55 301.67,-104.45"/>
+<text text-anchor="middle" x="254.5" y="-104.8" font-family="DejaVu Sans" font-size="9.00">Attention tasks</text>
+</g>
+</g>
+</svg>
+</div></section><section id="05_sfu"><h2>5. SFU流水线</h2><p>这是参数化实现框架，分段数量、系数、阶数和真实L/II还需prototype验证。32 lane需要足够的系数ROM读端口，不能用单读ROM直接满足32个不同index。</p><div class="canvas"><svg width="2264pt" height="223pt"
+ viewBox="0.00 0.00 2264.00 223.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 205)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-205 2246,-205 2246,18 -18,18"/>
+<!-- req -->
+<g id="node1" class="node">
+<title>req</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M153,-70C153,-70 12,-70 12,-70 6,-70 0,-64 0,-58 0,-58 0,-44 0,-44 0,-38 6,-32 12,-32 12,-32 153,-32 153,-32 159,-32 165,-38 165,-44 165,-44 165,-58 165,-58 165,-64 159,-70 153,-70"/>
+<text text-anchor="middle" x="82.5" y="-54.2" font-family="DejaVu Sans" font-size="11.00">SFUReq32</text>
+<text text-anchor="middle" x="82.5" y="-42.2" font-family="DejaVu Sans" font-size="11.00">op / values / masks / tags</text>
+</g>
+<!-- class -->
+<g id="node2" class="node">
+<title>class</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M454,-128C454,-128 289,-128 289,-128 283,-128 277,-122 277,-116 277,-116 277,-104 277,-104 277,-98 283,-92 289,-92 289,-92 454,-92 454,-92 460,-92 466,-98 466,-104 466,-104 466,-116 466,-116 466,-122 460,-128 454,-128"/>
+<text text-anchor="middle" x="371.5" y="-107.2" font-family="DejaVu Sans" font-size="11.00">Domain / special&#45;value checks</text>
+</g>
+<!-- req&#45;&gt;class -->
+<g id="edge1" class="edge">
+<title>req&#45;&gt;class</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M165.36,-67.83C199.76,-74.9 240.01,-83.17 275.69,-90.51"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="275.41,-92.95 282.76,-91.96 276.4,-88.15 275.41,-92.95"/>
+</g>
+<!-- tag -->
+<g id="node9" class="node">
+<title>tag</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M679,-69C679,-69 498,-69 498,-69 492,-69 486,-63 486,-57 486,-57 486,-45 486,-45 486,-39 492,-33 498,-33 498,-33 679,-33 679,-33 685,-33 691,-39 691,-45 691,-45 691,-57 691,-57 691,-63 685,-69 679,-69"/>
+<text text-anchor="middle" x="588.5" y="-48.2" font-family="DejaVu Sans" font-size="11.00">Latency&#45;matched tag / valid path</text>
+</g>
+<!-- req&#45;&gt;tag -->
+<g id="edge9" class="edge">
+<title>req&#45;&gt;tag</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M165.04,-51C250.16,-51 384.13,-51 478.34,-51"/>
+<polygon fill="#936238" stroke="#936238" points="478.62,-53.45 485.62,-51 478.62,-48.55 478.62,-53.45"/>
+<text text-anchor="middle" x="221" y="-53.8" font-family="DejaVu Sans" font-size="9.00">Accepted token</text>
+</g>
+<!-- range -->
+<g id="node3" class="node">
+<title>range</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M918,-139C918,-139 723,-139 723,-139 717,-139 711,-133 711,-127 711,-127 711,-101 711,-101 711,-95 717,-89 723,-89 723,-89 918,-89 918,-89 924,-89 930,-95 930,-101 930,-101 930,-127 930,-127 930,-133 924,-139 918,-139"/>
+<text text-anchor="middle" x="820.5" y="-123.2" font-family="DejaVu Sans" font-size="11.00">Range reduction</text>
+<text text-anchor="middle" x="820.5" y="-111.2" font-family="DejaVu Sans" font-size="11.00">EXP: x=k ln2+r</text>
+<text text-anchor="middle" x="820.5" y="-99.2" font-family="DejaVu Sans" font-size="11.00">RECIP/RSQRT: exponent + mantissa</text>
+</g>
+<!-- class&#45;&gt;range -->
+<g id="edge2" class="edge">
+<title>class&#45;&gt;range</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M466.21,-110.84C535.4,-111.46 629.99,-112.3 703.89,-112.97"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="703.95,-115.42 710.97,-113.03 703.99,-110.52 703.95,-115.42"/>
+</g>
+<!-- lut -->
+<g id="node4" class="node">
+<title>lut</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M1232,-187C1232,-187 1024,-187 1024,-187 1018,-187 1012,-181 1012,-175 1012,-175 1012,-161 1012,-161 1012,-155 1018,-149 1024,-149 1024,-149 1232,-149 1232,-149 1238,-149 1244,-155 1244,-161 1244,-161 1244,-175 1244,-175 1244,-181 1238,-187 1232,-187"/>
+<text text-anchor="middle" x="1128" y="-171.2" font-family="DejaVu Sans" font-size="11.00">Function coefficient ROMs</text>
+<text text-anchor="middle" x="1128" y="-159.2" font-family="DejaVu Sans" font-size="11.00">Segment index / replicated read ports</text>
+</g>
+<!-- range&#45;&gt;lut -->
+<g id="edge3" class="edge">
+<title>range&#45;&gt;lut</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M930.07,-133.19C956.67,-137.89 985.24,-142.94 1012.13,-147.7"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1011.98,-150.16 1019.3,-148.96 1012.83,-145.33 1011.98,-150.16"/>
+<text text-anchor="middle" x="971" y="-144.8" font-family="DejaVu Sans" font-size="9.00">Segment</text>
+</g>
+<!-- poly -->
+<g id="node5" class="node">
+<title>poly</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1626,-133C1626,-133 1411,-133 1411,-133 1405,-133 1399,-127 1399,-121 1399,-121 1399,-107 1399,-107 1399,-101 1405,-95 1411,-95 1411,-95 1626,-95 1626,-95 1632,-95 1638,-101 1638,-107 1638,-107 1638,-121 1638,-121 1638,-127 1632,-133 1626,-133"/>
+<text text-anchor="middle" x="1518.5" y="-117.2" font-family="DejaVu Sans" font-size="11.00">Polynomial / correction stages</text>
+<text text-anchor="middle" x="1518.5" y="-105.2" font-family="DejaVu Sans" font-size="11.00">Explicit rounding and non&#45;FMA contract</text>
+</g>
+<!-- range&#45;&gt;poly -->
+<g id="edge5" class="edge">
+<title>range&#45;&gt;poly</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M930.25,-114C1055.11,-114 1259.61,-114 1391.35,-114"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1391.74,-116.45 1398.74,-114 1391.74,-111.55 1391.74,-116.45"/>
+<text text-anchor="middle" x="1128" y="-116.8" font-family="DejaVu Sans" font-size="9.00">Reduced argument</text>
+</g>
+<!-- lut&#45;&gt;poly -->
+<g id="edge4" class="edge">
+<title>lut&#45;&gt;poly</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1244.25,-151.98C1290.73,-145.52 1344.49,-138.05 1391.96,-131.45"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1392.32,-133.87 1398.92,-130.48 1391.65,-129.02 1392.32,-133.87"/>
+<text text-anchor="middle" x="1321.5" y="-150.8" font-family="DejaVu Sans" font-size="9.00">Coefficients</text>
+</g>
+<!-- adjust -->
+<g id="node6" class="node">
+<title>adjust</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1858,-130C1858,-130 1691,-130 1691,-130 1685,-130 1679,-124 1679,-118 1679,-118 1679,-104 1679,-104 1679,-98 1685,-92 1691,-92 1691,-92 1858,-92 1858,-92 1864,-92 1870,-98 1870,-104 1870,-104 1870,-118 1870,-118 1870,-124 1864,-130 1858,-130"/>
+<text text-anchor="middle" x="1774.5" y="-114.2" font-family="DejaVu Sans" font-size="11.00">Exponent / sign reconstruction</text>
+<text text-anchor="middle" x="1774.5" y="-102.2" font-family="DejaVu Sans" font-size="11.00">Clamp / exceptions</text>
+</g>
+<!-- poly&#45;&gt;adjust -->
+<g id="edge6" class="edge">
+<title>poly&#45;&gt;adjust</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1638.32,-112.6C1649.44,-112.47 1660.65,-112.33 1671.59,-112.2"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1671.77,-114.65 1678.74,-112.12 1671.71,-109.75 1671.77,-114.65"/>
+</g>
+<!-- fifo -->
+<g id="node7" class="node">
+<title>fifo</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M2091,-70C2091,-70 1923,-70 1923,-70 1917,-70 1911,-64 1911,-58 1911,-58 1911,-44 1911,-44 1911,-38 1917,-32 1923,-32 1923,-32 2091,-32 2091,-32 2097,-32 2103,-38 2103,-44 2103,-44 2103,-58 2103,-58 2103,-64 2097,-70 2091,-70"/>
+<text text-anchor="middle" x="2007" y="-54.2" font-family="DejaVu Sans" font-size="11.00">Reserved return FIFO</text>
+<text text-anchor="middle" x="2007" y="-42.2" font-family="DejaVu Sans" font-size="11.00">Fixed&#45;latency IP credit wrapper</text>
+</g>
+<!-- adjust&#45;&gt;fifo -->
+<g id="edge7" class="edge">
+<title>adjust&#45;&gt;fifo</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1848.75,-91.93C1873.33,-85.53 1900.86,-78.37 1925.94,-71.84"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1926.79,-74.15 1932.94,-70.02 1925.55,-69.41 1926.79,-74.15"/>
+</g>
+<!-- fifo&#45;&gt;req -->
+<g id="edge11" class="edge">
+<title>fifo&#45;&gt;req</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1951.33,-31.86C1905.09,-17.39 1836.77,0 1775.5,0 370.5,0 370.5,0 370.5,0 297.68,0 216.04,-16.11 158.51,-30.23"/>
+<polygon fill="#936238" stroke="#936238" points="157.82,-27.87 151.61,-31.94 159,-32.63 157.82,-27.87"/>
+<text text-anchor="middle" x="1128" y="-2.8" font-family="DejaVu Sans" font-size="9.00">Input credit</text>
+</g>
+<!-- resp -->
+<g id="node8" class="node">
+<title>resp</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M2216,-69C2216,-69 2156,-69 2156,-69 2150,-69 2144,-63 2144,-57 2144,-57 2144,-45 2144,-45 2144,-39 2150,-33 2156,-33 2156,-33 2216,-33 2216,-33 2222,-33 2228,-39 2228,-45 2228,-45 2228,-57 2228,-57 2228,-63 2222,-69 2216,-69"/>
+<text text-anchor="middle" x="2186" y="-48.2" font-family="DejaVu Sans" font-size="11.00">SFUResp32</text>
+</g>
+<!-- fifo&#45;&gt;resp -->
+<g id="edge8" class="edge">
+<title>fifo&#45;&gt;resp</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M2103.24,-51C2114.8,-51 2126.22,-51 2136.68,-51"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="2136.76,-53.45 2143.76,-51 2136.76,-48.55 2136.76,-53.45"/>
+</g>
+<!-- tag&#45;&gt;fifo -->
+<g id="edge10" class="edge">
+<title>tag&#45;&gt;fifo</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M691.24,-51C767.88,-51 875.54,-51 970,-51 970,-51 970,-51 1775.5,-51 1817.41,-51 1863.61,-51 1903.57,-51"/>
+<polygon fill="#936238" stroke="#936238" points="1903.96,-53.45 1910.96,-51 1903.96,-48.55 1903.96,-53.45"/>
+<text text-anchor="middle" x="1321.5" y="-53.8" font-family="DejaVu Sans" font-size="9.00">Matched result metadata</text>
+</g>
+</g>
+</svg>
+</div></section><section id="06_dma"><h2>6. DMA子系统</h2><p>DMA包含HBM读写、返回重排、布局适配和完成跟踪。KV_FETCH完成要等pack与片上写可见；KV_APPEND完成要等B响应。host PCIe DMA由shell提供。</p><div class="canvas"><svg width="2702pt" height="403pt"
+ viewBox="0.00 0.00 2702.00 403.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 385)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-385 2684,-385 2684,18 -18,18"/>
+<!-- cmd -->
+<g id="node1" class="node">
+<title>cmd</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M120,-54C120,-54 12,-54 12,-54 6,-54 0,-48 0,-42 0,-42 0,-30 0,-30 0,-24 6,-18 12,-18 12,-18 120,-18 120,-18 126,-18 132,-24 132,-30 132,-30 132,-42 132,-42 132,-48 126,-54 120,-54"/>
+<text text-anchor="middle" x="66" y="-33.2" font-family="DejaVu Sans" font-size="11.00">DCU / Acu DmaCmd</text>
+</g>
+<!-- sched -->
+<g id="node2" class="node">
+<title>sched</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M427,-55C427,-55 185,-55 185,-55 179,-55 173,-49 173,-43 173,-43 173,-29 173,-29 173,-23 179,-17 185,-17 185,-17 427,-17 427,-17 433,-17 439,-23 439,-29 439,-29 439,-43 439,-43 439,-49 433,-55 427,-55"/>
+<text text-anchor="middle" x="306" y="-39.2" font-family="DejaVu Sans" font-size="11.00">DmaScheduler</text>
+<text text-anchor="middle" x="306" y="-27.2" font-family="DejaVu Sans" font-size="11.00">Weight / KV / activation / parameter queues</text>
+</g>
+<!-- cmd&#45;&gt;sched -->
+<g id="edge1" class="edge">
+<title>cmd&#45;&gt;sched</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M132.03,-36C142.63,-36 153.96,-36 165.55,-36"/>
+<polygon fill="#936238" stroke="#936238" points="165.8,-38.45 172.8,-36 165.8,-33.55 165.8,-38.45"/>
+</g>
+<!-- addr -->
+<g id="node3" class="node">
+<title>addr</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M702,-100C702,-100 548,-100 548,-100 542,-100 536,-94 536,-88 536,-88 536,-74 536,-74 536,-68 542,-62 548,-62 548,-62 702,-62 702,-62 708,-62 714,-68 714,-74 714,-74 714,-88 714,-88 714,-94 708,-100 702,-100"/>
+<text text-anchor="middle" x="625" y="-84.2" font-family="DejaVu Sans" font-size="11.00">AddressGenerator</text>
+<text text-anchor="middle" x="625" y="-72.2" font-family="DejaVu Sans" font-size="11.00">2D strides / 4 KiB burst split</text>
+</g>
+<!-- sched&#45;&gt;addr -->
+<g id="edge2" class="edge">
+<title>sched&#45;&gt;addr</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M439.14,-54.76C469.21,-59.03 500.58,-63.48 528.76,-67.48"/>
+<polygon fill="#936238" stroke="#936238" points="528.58,-69.93 535.86,-68.49 529.27,-65.08 528.58,-69.93"/>
+</g>
+<!-- copy -->
+<g id="node10" class="node">
+<title>copy</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M901,-38C901,-38 746,-38 746,-38 740,-38 734,-32 734,-26 734,-26 734,-12 734,-12 734,-6 740,0 746,0 746,0 901,0 901,0 907,0 913,-6 913,-12 913,-12 913,-26 913,-26 913,-32 907,-38 901,-38"/>
+<text text-anchor="middle" x="823.5" y="-22.2" font-family="DejaVu Sans" font-size="11.00">LocalCopyEngine</text>
+<text text-anchor="middle" x="823.5" y="-10.2" font-family="DejaVu Sans" font-size="11.00">Shared bank&#45;port arbitration</text>
+</g>
+<!-- sched&#45;&gt;copy -->
+<g id="edge15" class="edge">
+<title>sched&#45;&gt;copy</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M439.08,-31.64C528.85,-28.68 645.54,-24.84 726.5,-22.17"/>
+<polygon fill="#936238" stroke="#936238" points="726.82,-24.61 733.73,-21.93 726.66,-19.71 726.82,-24.61"/>
+<text text-anchor="middle" x="487.5" y="-33.8" font-family="DejaVu Sans" font-size="9.00">LOCAL_COPY</text>
+</g>
+<!-- rd -->
+<g id="node4" class="node">
+<title>rd</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1091,-164C1091,-164 945,-164 945,-164 939,-164 933,-158 933,-152 933,-152 933,-138 933,-138 933,-132 939,-126 945,-126 945,-126 1091,-126 1091,-126 1097,-126 1103,-132 1103,-138 1103,-138 1103,-152 1103,-152 1103,-158 1097,-164 1091,-164"/>
+<text text-anchor="middle" x="1018" y="-148.2" font-family="DejaVu Sans" font-size="11.00">ReadEngine[j]</text>
+<text text-anchor="middle" x="1018" y="-136.2" font-family="DejaVu Sans" font-size="11.00">ID + burst + return credits</text>
+</g>
+<!-- addr&#45;&gt;rd -->
+<g id="edge3" class="edge">
+<title>addr&#45;&gt;rd</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M714.1,-96.62C720.83,-97.78 727.52,-98.92 734,-100 797.99,-110.72 870.23,-122.19 925.71,-130.87"/>
+<polygon fill="#936238" stroke="#936238" points="925.44,-133.31 932.74,-131.97 926.2,-128.47 925.44,-133.31"/>
+<text text-anchor="middle" x="823.5" y="-130.8" font-family="DejaVu Sans" font-size="9.00">Read burst</text>
+</g>
+<!-- wr -->
+<g id="node5" class="node">
+<title>wr</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M2418.5,-139C2418.5,-139 2244.5,-139 2244.5,-139 2238.5,-139 2232.5,-133 2232.5,-127 2232.5,-127 2232.5,-113 2232.5,-113 2232.5,-107 2238.5,-101 2244.5,-101 2244.5,-101 2418.5,-101 2418.5,-101 2424.5,-101 2430.5,-107 2430.5,-113 2430.5,-113 2430.5,-127 2430.5,-127 2430.5,-133 2424.5,-139 2418.5,-139"/>
+<text text-anchor="middle" x="2331.5" y="-123.2" font-family="DejaVu Sans" font-size="11.00">WriteEngine</text>
+<text text-anchor="middle" x="2331.5" y="-111.2" font-family="DejaVu Sans" font-size="11.00">Burst staging / AW&#45;W&#45;B tracking</text>
+</g>
+<!-- addr&#45;&gt;wr -->
+<g id="edge4" class="edge">
+<title>addr&#45;&gt;wr</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M714.13,-81C793.37,-81 912.97,-81 1017,-81 1017,-81 1017,-81 1344,-81 1665.16,-81 2044.67,-101.89 2225.06,-113.09"/>
+<polygon fill="#936238" stroke="#936238" points="2225.05,-115.55 2232.19,-113.54 2225.35,-110.66 2225.05,-115.55"/>
+<text text-anchor="middle" x="1491.5" y="-86.8" font-family="DejaVu Sans" font-size="9.00">Write burst</text>
+</g>
+<!-- hbm -->
+<g id="node6" class="node">
+<title>hbm</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M1272,-205C1272,-205 1168,-205 1168,-205 1162,-205 1156,-199 1156,-193 1156,-193 1156,-181 1156,-181 1156,-175 1162,-169 1168,-169 1168,-169 1272,-169 1272,-169 1278,-169 1284,-175 1284,-181 1284,-181 1284,-193 1284,-193 1284,-199 1278,-205 1272,-205"/>
+<text text-anchor="middle" x="1220" y="-184.2" font-family="DejaVu Sans" font-size="11.00">HBM AXI interfaces</text>
+</g>
+<!-- rd&#45;&gt;hbm -->
+<g id="edge5" class="edge">
+<title>rd&#45;&gt;hbm</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1103.24,-162.69C1118.38,-165.87 1134.01,-169.15 1148.7,-172.24"/>
+<polygon fill="#936238" stroke="#936238" points="1148.48,-174.69 1155.83,-173.73 1149.48,-169.9 1148.48,-174.69"/>
+<text text-anchor="middle" x="1129.5" y="-170.8" font-family="DejaVu Sans" font-size="9.00">AR</text>
+</g>
+<!-- wr&#45;&gt;hbm -->
+<g id="edge10" class="edge">
+<title>wr&#45;&gt;hbm</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M2232.36,-125.93C2012.09,-139.23 1482.71,-171.2 1291.44,-182.75"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1291.07,-180.31 1284.23,-183.18 1291.37,-185.21 1291.07,-180.31"/>
+<text text-anchor="middle" x="1719.5" y="-164.8" font-family="DejaVu Sans" font-size="9.00">AW / W</text>
+</g>
+<!-- router -->
+<g id="node7" class="node">
+<title>router</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1569,-245C1569,-245 1414,-245 1414,-245 1408,-245 1402,-239 1402,-233 1402,-233 1402,-219 1402,-219 1402,-213 1408,-207 1414,-207 1414,-207 1569,-207 1569,-207 1575,-207 1581,-213 1581,-219 1581,-219 1581,-233 1581,-233 1581,-239 1575,-245 1569,-245"/>
+<text text-anchor="middle" x="1491.5" y="-229.2" font-family="DejaVu Sans" font-size="11.00">ReadReorder / ReturnRouter</text>
+<text text-anchor="middle" x="1491.5" y="-217.2" font-family="DejaVu Sans" font-size="11.00">tag + logical byte offset</text>
+</g>
+<!-- hbm&#45;&gt;router -->
+<g id="edge6" class="edge">
+<title>hbm&#45;&gt;router</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1284.19,-196.14C1317.08,-200.9 1357.98,-206.82 1394.67,-212.13"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1394.67,-214.61 1401.95,-213.19 1395.37,-209.76 1394.67,-214.61"/>
+<text text-anchor="middle" x="1343" y="-211.8" font-family="DejaVu Sans" font-size="9.00">R data</text>
+</g>
+<!-- track -->
+<g id="node11" class="node">
+<title>track</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M2434,-289C2434,-289 2229,-289 2229,-289 2223,-289 2217,-283 2217,-277 2217,-277 2217,-263 2217,-263 2217,-257 2223,-251 2229,-251 2229,-251 2434,-251 2434,-251 2440,-251 2446,-257 2446,-263 2446,-263 2446,-277 2446,-277 2446,-283 2440,-289 2434,-289"/>
+<text text-anchor="middle" x="2331.5" y="-273.2" font-family="DejaVu Sans" font-size="11.00">TransferTracker</text>
+<text text-anchor="middle" x="2331.5" y="-261.2" font-family="DejaVu Sans" font-size="11.00">R/B counts + flush + destination ACK</text>
+</g>
+<!-- hbm&#45;&gt;track -->
+<g id="edge11" class="edge">
+<title>hbm&#45;&gt;track</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1235.87,-205.19C1273.52,-249.05 1377.65,-357 1490.5,-357 1490.5,-357 1490.5,-357 2007,-357 2107.16,-357 2218.97,-317.62 2281.42,-291.85"/>
+<polygon fill="#936238" stroke="#936238" points="2282.53,-294.05 2288.05,-289.09 2280.65,-289.52 2282.53,-294.05"/>
+<text text-anchor="middle" x="1719.5" y="-359.8" font-family="DejaVu Sans" font-size="9.00">B response</text>
+</g>
+<!-- layout -->
+<g id="node8" class="node">
+<title>layout</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1805,-245C1805,-245 1634,-245 1634,-245 1628,-245 1622,-239 1622,-233 1622,-233 1622,-219 1622,-219 1622,-213 1628,-207 1634,-207 1634,-207 1805,-207 1805,-207 1811,-207 1817,-213 1817,-219 1817,-219 1817,-233 1817,-233 1817,-239 1811,-245 1805,-245"/>
+<text text-anchor="middle" x="1719.5" y="-229.2" font-family="DejaVu Sans" font-size="11.00">Layout adapters</text>
+<text text-anchor="middle" x="1719.5" y="-217.2" font-family="DejaVu Sans" font-size="11.00">Weight blocks / K pack / V pack</text>
+</g>
+<!-- router&#45;&gt;layout -->
+<g id="edge7" class="edge">
+<title>router&#45;&gt;layout</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1581.17,-226C1592.13,-226 1603.4,-226 1614.56,-226"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1614.87,-228.45 1621.87,-226 1614.87,-223.55 1614.87,-228.45"/>
+</g>
+<!-- router&#45;&gt;track -->
+<g id="edge12" class="edge">
+<title>router&#45;&gt;track</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1558.2,-245.01C1578.49,-250.13 1601.02,-255.05 1622,-258 1837.81,-288.3 1894.11,-272 2112,-276 2149.77,-276.69 2159.23,-276.85 2197,-276 2201.16,-275.91 2205.39,-275.8 2209.67,-275.67"/>
+<polygon fill="#936238" stroke="#936238" points="2209.97,-278.12 2216.9,-275.45 2209.82,-273.22 2209.97,-278.12"/>
+<text text-anchor="middle" x="1868.5" y="-278.8" font-family="DejaVu Sans" font-size="9.00">R / errors</text>
+</g>
+<!-- store -->
+<g id="node9" class="node">
+<title>store</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M2080,-196C2080,-196 1932,-196 1932,-196 1926,-196 1920,-190 1920,-184 1920,-184 1920,-170 1920,-170 1920,-164 1926,-158 1932,-158 1932,-158 2080,-158 2080,-158 2086,-158 2092,-164 2092,-170 2092,-170 2092,-184 2092,-184 2092,-190 2086,-196 2080,-196"/>
+<text text-anchor="middle" x="2006" y="-180.2" font-family="DejaVu Sans" font-size="11.00">LocalBankPortAdapter</text>
+<text text-anchor="middle" x="2006" y="-168.2" font-family="DejaVu Sans" font-size="11.00">Weight / KV / vector stores</text>
+</g>
+<!-- layout&#45;&gt;store -->
+<g id="edge8" class="edge">
+<title>layout&#45;&gt;store</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1817.22,-209.34C1848.09,-204.03 1882.15,-198.16 1912.7,-192.9"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1913.5,-195.25 1919.98,-191.64 1912.66,-190.42 1913.5,-195.25"/>
+<text text-anchor="middle" x="1868.5" y="-207.8" font-family="DejaVu Sans" font-size="9.00">Packed writes</text>
+</g>
+<!-- layout&#45;&gt;track -->
+<g id="edge13" class="edge">
+<title>layout&#45;&gt;track</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1817.16,-232.97C1923.52,-240.64 2094.65,-252.99 2209.76,-261.29"/>
+<polygon fill="#936238" stroke="#936238" points="2209.76,-263.75 2216.92,-261.81 2210.11,-258.86 2209.76,-263.75"/>
+<text text-anchor="middle" x="2006" y="-254.8" font-family="DejaVu Sans" font-size="9.00">Flush</text>
+</g>
+<!-- store&#45;&gt;wr -->
+<g id="edge9" class="edge">
+<title>store&#45;&gt;wr</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M2092.42,-161.95C2133.11,-154.78 2182.17,-146.13 2225.16,-138.56"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="2225.81,-140.93 2232.28,-137.31 2224.96,-136.11 2225.81,-140.93"/>
+<text text-anchor="middle" x="2154.5" y="-158.8" font-family="DejaVu Sans" font-size="9.00">Append / spill data</text>
+</g>
+<!-- store&#45;&gt;track -->
+<g id="edge14" class="edge">
+<title>store&#45;&gt;track</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M2092.43,-191.77C2125.42,-198.3 2163.27,-206.84 2197,-217 2225.49,-225.59 2256.43,-237.68 2281.34,-248.15"/>
+<polygon fill="#936238" stroke="#936238" points="2280.47,-250.45 2287.87,-250.92 2282.38,-245.93 2280.47,-250.45"/>
+<text text-anchor="middle" x="2154.5" y="-219.8" font-family="DejaVu Sans" font-size="9.00">Write ACK</text>
+</g>
+<!-- copy&#45;&gt;store -->
+<g id="edge16" class="edge">
+<title>copy&#45;&gt;store</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M913.29,-18.55C973.92,-18.29 1056.06,-18 1128.5,-18 1128.5,-18 1128.5,-18 1602,-18 1748.09,-18 1904.49,-109.53 1971.45,-153.7"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1970.47,-155.98 1977.65,-157.82 1973.18,-151.9 1970.47,-155.98"/>
+<text text-anchor="middle" x="1343" y="-20.8" font-family="DejaVu Sans" font-size="9.00">Local read / write</text>
+</g>
+<!-- done -->
+<g id="node12" class="node">
+<title>done</title>
+<path fill="#fbe9e7" stroke="#6482a6" d="M2654,-288C2654,-288 2499,-288 2499,-288 2493,-288 2487,-282 2487,-276 2487,-276 2487,-264 2487,-264 2487,-258 2493,-252 2499,-252 2499,-252 2654,-252 2654,-252 2660,-252 2666,-258 2666,-264 2666,-264 2666,-276 2666,-276 2666,-282 2660,-288 2654,-288"/>
+<text text-anchor="middle" x="2576.5" y="-267.2" font-family="DejaVu Sans" font-size="11.00">DmaDone / SlotReady / fault</text>
+</g>
+<!-- track&#45;&gt;done -->
+<g id="edge17" class="edge">
+<title>track&#45;&gt;done</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M2446.17,-270C2457.32,-270 2468.55,-270 2479.5,-270"/>
+<polygon fill="#936238" stroke="#936238" points="2479.65,-272.45 2486.65,-270 2479.65,-267.55 2479.65,-272.45"/>
+</g>
+</g>
+</svg>
+</div></section><section id="07_kv"><h2>7. KV存储与计算视图</h2><p>HBM每layer/token存K2048B+V2048B。两slot功能基线各512KiB；第三slot为lookahead候选。K/V bank图是逻辑读视图，物理RAM组合和端口必须综合验证。</p><div class="canvas"><svg width="1923pt" height="296pt"
+ viewBox="0.00 0.00 1923.00 296.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 278)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-278 1905,-278 1905,18 -18,18"/>
+<!-- hbm -->
+<g id="node1" class="node">
+<title>hbm</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M199,-122C199,-122 12,-122 12,-122 6,-122 0,-116 0,-110 0,-110 0,-84 0,-84 0,-78 6,-72 12,-72 12,-72 199,-72 199,-72 205,-72 211,-78 211,-84 211,-84 211,-110 211,-110 211,-116 205,-122 199,-122"/>
+<text text-anchor="middle" x="105.5" y="-106.2" font-family="DejaVu Sans" font-size="11.00">HBM token&#45;major</text>
+<text text-anchor="middle" x="105.5" y="-94.2" font-family="DejaVu Sans" font-size="11.00">[layer][token][K 2048B | V 2048B]</text>
+<text text-anchor="middle" x="105.5" y="-82.2" font-family="DejaVu Sans" font-size="11.00">kvHead x dim BF16</text>
+</g>
+<!-- dma -->
+<g id="node2" class="node">
+<title>dma</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M474,-122C474,-122 350,-122 350,-122 344,-122 338,-116 338,-110 338,-110 338,-84 338,-84 338,-78 344,-72 350,-72 350,-72 474,-72 474,-72 480,-72 486,-78 486,-84 486,-84 486,-110 486,-110 486,-116 480,-122 474,-122"/>
+<text text-anchor="middle" x="412" y="-106.2" font-family="DejaVu Sans" font-size="11.00">KV DMA / pack staging</text>
+<text text-anchor="middle" x="412" y="-94.2" font-family="DejaVu Sans" font-size="11.00">K: 32&#45;token 64 KiB</text>
+<text text-anchor="middle" x="412" y="-82.2" font-family="DejaVu Sans" font-size="11.00">V: 8&#45;token 16 KiB</text>
+</g>
+<!-- hbm&#45;&gt;dma -->
+<g id="edge1" class="edge">
+<title>hbm&#45;&gt;dma</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M211.29,-97C250.32,-97 293.98,-97 330.49,-97"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="330.7,-99.45 337.7,-97 330.7,-94.55 330.7,-99.45"/>
+<text text-anchor="middle" x="274.5" y="-99.8" font-family="DejaVu Sans" font-size="9.00">Fetch128 / append</text>
+</g>
+<!-- a -->
+<g id="node3" class="node">
+<title>a</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M771,-152C771,-152 598,-152 598,-152 592,-152 586,-146 586,-140 586,-140 586,-126 586,-126 586,-120 592,-114 598,-114 598,-114 771,-114 771,-114 777,-114 783,-120 783,-126 783,-126 783,-140 783,-140 783,-146 777,-152 771,-152"/>
+<text text-anchor="middle" x="684.5" y="-136.2" font-family="DejaVu Sans" font-size="11.00">KV slot A: 512 KiB</text>
+<text text-anchor="middle" x="684.5" y="-124.2" font-family="DejaVu Sans" font-size="11.00">FREE &#45;&gt; FILL &#45;&gt; READY &#45;&gt; READ</text>
+</g>
+<!-- dma&#45;&gt;a -->
+<g id="edge2" class="edge">
+<title>dma&#45;&gt;a</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M486.2,-106.74C514.71,-110.54 547.92,-114.96 578.87,-119.07"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="578.59,-121.51 585.85,-120 579.23,-116.65 578.59,-121.51"/>
+<text text-anchor="middle" x="536" y="-119.8" font-family="DejaVu Sans" font-size="9.00">Fill</text>
+</g>
+<!-- b -->
+<g id="node4" class="node">
+<title>b</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M764.5,-217C764.5,-217 604.5,-217 604.5,-217 598.5,-217 592.5,-211 592.5,-205 592.5,-205 592.5,-191 592.5,-191 592.5,-185 598.5,-179 604.5,-179 604.5,-179 764.5,-179 764.5,-179 770.5,-179 776.5,-185 776.5,-191 776.5,-191 776.5,-205 776.5,-205 776.5,-211 770.5,-217 764.5,-217"/>
+<text text-anchor="middle" x="684.5" y="-201.2" font-family="DejaVu Sans" font-size="11.00">KV slot B: 512 KiB</text>
+<text text-anchor="middle" x="684.5" y="-189.2" font-family="DejaVu Sans" font-size="11.00">Separate fill / compute banks</text>
+</g>
+<!-- dma&#45;&gt;b -->
+<g id="edge3" class="edge">
+<title>dma&#45;&gt;b</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M474.78,-122.12C507.66,-135.27 548.87,-151.43 586,-165 596.56,-168.86 607.83,-172.82 618.81,-176.59"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="618.18,-178.97 625.6,-178.91 619.77,-174.33 618.18,-178.97"/>
+<text text-anchor="middle" x="536" y="-158.8" font-family="DejaVu Sans" font-size="9.00">Fill</text>
+</g>
+<!-- c -->
+<g id="node5" class="node">
+<title>c</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M742,-38C742,-38 627,-38 627,-38 621,-38 615,-32 615,-26 615,-26 615,-12 615,-12 615,-6 621,0 627,0 627,0 742,0 742,0 748,0 754,-6 754,-12 754,-12 754,-26 754,-26 754,-32 748,-38 742,-38"/>
+<text text-anchor="middle" x="684.5" y="-22.2" font-family="DejaVu Sans" font-size="11.00">KV slot C: +512 KiB</text>
+<text text-anchor="middle" x="684.5" y="-10.2" font-family="DejaVu Sans" font-size="11.00">Optional, NOT frozen</text>
+</g>
+<!-- dma&#45;&gt;c -->
+<g id="edge4" class="edge">
+<title>dma&#45;&gt;c</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M452.86,-71.75C468.84,-62.66 487.76,-53.14 506,-47 538.43,-36.08 575.67,-29.37 607.63,-25.28"/>
+<polygon fill="#936238" stroke="#936238" points="608.14,-27.68 614.78,-24.39 607.54,-22.82 608.14,-27.68"/>
+<text text-anchor="middle" x="536" y="-49.8" font-family="DejaVu Sans" font-size="9.00">Candidate fill</text>
+</g>
+<!-- k -->
+<g id="node6" class="node">
+<title>k</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M1076,-260C1076,-260 924,-260 924,-260 918,-260 912,-254 912,-248 912,-248 912,-210 912,-210 912,-204 918,-198 924,-198 924,-198 1076,-198 1076,-198 1082,-198 1088,-204 1088,-210 1088,-210 1088,-248 1088,-248 1088,-254 1082,-260 1076,-260"/>
+<text text-anchor="middle" x="1000" y="-244.2" font-family="DejaVu Sans" font-size="11.00">K view</text>
+<text text-anchor="middle" x="1000" y="-232.2" font-family="DejaVu Sans" font-size="11.00">bank=(kvHead,dimGroup8)</text>
+<text text-anchor="middle" x="1000" y="-220.2" font-family="DejaVu Sans" font-size="11.00">word=32 positions x 8 dims</text>
+<text text-anchor="middle" x="1000" y="-208.2" font-family="DejaVu Sans" font-size="11.00">row=position/32</text>
+</g>
+<!-- a&#45;&gt;k -->
+<g id="edge5" class="edge">
+<title>a&#45;&gt;k</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M747.81,-152.08C792.76,-165.84 854.22,-184.66 905.09,-200.24"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="904.47,-202.61 911.88,-202.32 905.9,-197.93 904.47,-202.61"/>
+<text text-anchor="middle" x="846.5" y="-197.8" font-family="DejaVu Sans" font-size="9.00">Selected ready slot</text>
+</g>
+<!-- v -->
+<g id="node7" class="node">
+<title>v</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M1078,-173C1078,-173 922,-173 922,-173 916,-173 910,-167 910,-161 910,-161 910,-123 910,-123 910,-117 916,-111 922,-111 922,-111 1078,-111 1078,-111 1084,-111 1090,-117 1090,-123 1090,-123 1090,-161 1090,-161 1090,-167 1084,-173 1078,-173"/>
+<text text-anchor="middle" x="1000" y="-157.2" font-family="DejaVu Sans" font-size="11.00">V view</text>
+<text text-anchor="middle" x="1000" y="-145.2" font-family="DejaVu Sans" font-size="11.00">bank=(kvHead,dim mod32)</text>
+<text text-anchor="middle" x="1000" y="-133.2" font-family="DejaVu Sans" font-size="11.00">word=8 positions</text>
+<text text-anchor="middle" x="1000" y="-121.2" font-family="DejaVu Sans" font-size="11.00">row=(dim/32)*16+position/8</text>
+</g>
+<!-- a&#45;&gt;v -->
+<g id="edge7" class="edge">
+<title>a&#45;&gt;v</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M783.4,-135.81C821.46,-136.9 864.93,-138.15 902.81,-139.24"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="902.75,-141.69 909.82,-139.44 902.89,-136.79 902.75,-141.69"/>
+</g>
+<!-- b&#45;&gt;k -->
+<g id="edge6" class="edge">
+<title>b&#45;&gt;k</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M776.56,-209.14C785.49,-210.15 794.42,-211.12 803,-212 836.01,-215.4 872.19,-218.66 904.39,-221.41"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="904.44,-223.87 911.62,-222.02 904.85,-218.99 904.44,-223.87"/>
+</g>
+<!-- b&#45;&gt;v -->
+<g id="edge8" class="edge">
+<title>b&#45;&gt;v</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M776.6,-195.51C812.27,-193.22 853.35,-188.94 890,-181 897.44,-179.39 905.07,-177.4 912.67,-175.18"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="913.64,-177.45 919.63,-173.08 912.22,-172.75 913.64,-177.45"/>
+</g>
+<!-- qk -->
+<g id="node8" class="node">
+<title>qk</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1875,-211C1875,-211 1726,-211 1726,-211 1720,-211 1714,-205 1714,-199 1714,-199 1714,-173 1714,-173 1714,-167 1720,-161 1726,-161 1726,-161 1875,-161 1875,-161 1881,-161 1887,-167 1887,-173 1887,-173 1887,-199 1887,-199 1887,-205 1881,-211 1875,-211"/>
+<text text-anchor="middle" x="1800.5" y="-195.2" font-family="DejaVu Sans" font-size="11.00">MPU QK</text>
+<text text-anchor="middle" x="1800.5" y="-183.2" font-family="DejaVu Sans" font-size="11.00">Select K position lanes</text>
+<text text-anchor="middle" x="1800.5" y="-171.2" font-family="DejaVu Sans" font-size="11.00">4 Q heads share 1 KV head</text>
+</g>
+<!-- k&#45;&gt;qk -->
+<g id="edge9" class="edge">
+<title>k&#45;&gt;qk</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1088.36,-224.3C1240.13,-216.12 1551.13,-199.37 1706.65,-191"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1707.08,-193.43 1713.94,-190.61 1706.82,-188.54 1707.08,-193.43"/>
+</g>
+<!-- pv -->
+<g id="node9" class="node">
+<title>pv</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1319,-167C1319,-167 1143,-167 1143,-167 1137,-167 1131,-161 1131,-155 1131,-155 1131,-129 1131,-129 1131,-123 1137,-117 1143,-117 1143,-117 1319,-117 1319,-117 1325,-117 1331,-123 1331,-129 1331,-129 1331,-155 1331,-155 1331,-161 1325,-167 1319,-167"/>
+<text text-anchor="middle" x="1231" y="-151.2" font-family="DejaVu Sans" font-size="11.00">MPU PV</text>
+<text text-anchor="middle" x="1231" y="-139.2" font-family="DejaVu Sans" font-size="11.00">4 Q heads x 32 dims</text>
+<text text-anchor="middle" x="1231" y="-127.2" font-family="DejaVu Sans" font-size="11.00">Shared V; separate probabilities</text>
+</g>
+<!-- v&#45;&gt;pv -->
+<g id="edge10" class="edge">
+<title>v&#45;&gt;pv</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1090.19,-142C1101.11,-142 1112.36,-142 1123.5,-142"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1123.8,-144.45 1130.8,-142 1123.8,-139.55 1123.8,-144.45"/>
+</g>
+<!-- manager -->
+<g id="node10" class="node">
+<title>manager</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M1618,-167C1618,-167 1451,-167 1451,-167 1445,-167 1439,-161 1439,-155 1439,-155 1439,-129 1439,-129 1439,-123 1445,-117 1451,-117 1451,-117 1618,-117 1618,-117 1624,-117 1630,-123 1630,-129 1630,-129 1630,-155 1630,-155 1630,-161 1624,-167 1618,-167"/>
+<text text-anchor="middle" x="1534.5" y="-151.2" font-family="DejaVu Sans" font-size="11.00">KvCacheManager / slot credits</text>
+<text text-anchor="middle" x="1534.5" y="-139.2" font-family="DejaVu Sans" font-size="11.00">Ready after pack flush</text>
+<text text-anchor="middle" x="1534.5" y="-127.2" font-family="DejaVu Sans" font-size="11.00">Release after last PV read</text>
+</g>
+<!-- pv&#45;&gt;manager -->
+<g id="edge13" class="edge">
+<title>pv&#45;&gt;manager</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1331.14,-142C1363.37,-142 1399.18,-142 1431.61,-142"/>
+<polygon fill="#936238" stroke="#936238" points="1431.91,-144.45 1438.91,-142 1431.91,-139.55 1431.91,-144.45"/>
+<text text-anchor="middle" x="1385" y="-144.8" font-family="DejaVu Sans" font-size="9.00">Last read done</text>
+</g>
+<!-- manager&#45;&gt;dma -->
+<g id="edge11" class="edge">
+<title>manager&#45;&gt;dma</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1461.05,-116.95C1400.58,-98.28 1311.71,-76 1232,-76 683.5,-76 683.5,-76 683.5,-76 619.37,-76 546.95,-81.94 493.2,-87.5"/>
+<polygon fill="#936238" stroke="#936238" points="492.78,-85.08 486.07,-88.25 493.29,-89.95 492.78,-85.08"/>
+<text text-anchor="middle" x="1000" y="-78.8" font-family="DejaVu Sans" font-size="9.00">Slot reservation</text>
+</g>
+<!-- manager&#45;&gt;qk -->
+<g id="edge12" class="edge">
+<title>manager&#45;&gt;qk</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1630.06,-157.76C1655.08,-161.93 1682.06,-166.43 1706.97,-170.58"/>
+<polygon fill="#936238" stroke="#936238" points="1706.63,-173.01 1713.94,-171.74 1707.43,-168.17 1706.63,-173.01"/>
+<text text-anchor="middle" x="1672" y="-169.8" font-family="DejaVu Sans" font-size="9.00">Tile ready</text>
+</g>
+</g>
+</svg>
+</div></section><section id="08_dcu"><h2>8. DCU与事件调度</h2><p>顺序dispatch、显式事件、有限队列。Acu展开attention微任务；普通MPU/VPU controller展开自身循环。故障停新请求但排空已发AXI和固定延迟算术返回。</p><div class="canvas"><svg width="2035pt" height="283pt"
+ viewBox="0.00 0.00 2035.00 283.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 265)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-265 2017,-265 2017,18 -18,18"/>
+<!-- prog -->
+<g id="node1" class="node">
+<title>prog</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M169,-129C169,-129 12,-129 12,-129 6,-129 0,-123 0,-117 0,-117 0,-105 0,-105 0,-99 6,-93 12,-93 12,-93 169,-93 169,-93 175,-93 181,-99 181,-105 181,-105 181,-117 181,-117 181,-123 175,-129 169,-129"/>
+<text text-anchor="middle" x="90.5" y="-108.2" font-family="DejaVu Sans" font-size="11.00">Program / tensor descriptors</text>
+</g>
+<!-- fetch -->
+<g id="node2" class="node">
+<title>fetch</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M320,-130C320,-130 234,-130 234,-130 228,-130 222,-124 222,-118 222,-118 222,-104 222,-104 222,-98 228,-92 234,-92 234,-92 320,-92 320,-92 326,-92 332,-98 332,-104 332,-104 332,-118 332,-118 332,-124 326,-130 320,-130"/>
+<text text-anchor="middle" x="277" y="-114.2" font-family="DejaVu Sans" font-size="11.00">ProgramFetcher</text>
+<text text-anchor="middle" x="277" y="-102.2" font-family="DejaVu Sans" font-size="11.00">Instruction FIFO</text>
+</g>
+<!-- prog&#45;&gt;fetch -->
+<g id="edge1" class="edge">
+<title>prog&#45;&gt;fetch</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M181.05,-111C192.5,-111 204,-111 214.85,-111"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="214.88,-113.45 221.88,-111 214.88,-108.55 214.88,-113.45"/>
+</g>
+<!-- valid -->
+<g id="node3" class="node">
+<title>valid</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M545,-130C545,-130 385,-130 385,-130 379,-130 373,-124 373,-118 373,-118 373,-104 373,-104 373,-98 379,-92 385,-92 385,-92 545,-92 545,-92 551,-92 557,-98 557,-104 557,-104 557,-118 557,-118 557,-124 551,-130 545,-130"/>
+<text text-anchor="middle" x="465" y="-114.2" font-family="DejaVu Sans" font-size="11.00">DescriptorValidator</text>
+<text text-anchor="middle" x="465" y="-102.2" font-family="DejaVu Sans" font-size="11.00">Shape / range / format / alias</text>
+</g>
+<!-- fetch&#45;&gt;valid -->
+<g id="edge2" class="edge">
+<title>fetch&#45;&gt;valid</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M332.05,-111C342.62,-111 354.01,-111 365.51,-111"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="365.68,-113.45 372.68,-111 365.68,-108.55 365.68,-113.45"/>
+</g>
+<!-- disp -->
+<g id="node6" class="node">
+<title>disp</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M723,-130C723,-130 610,-130 610,-130 604,-130 598,-124 598,-118 598,-118 598,-104 598,-104 598,-98 604,-92 610,-92 610,-92 723,-92 723,-92 729,-92 735,-98 735,-104 735,-104 735,-118 735,-118 735,-124 729,-130 723,-130"/>
+<text text-anchor="middle" x="666.5" y="-114.2" font-family="DejaVu Sans" font-size="11.00">Dispatcher</text>
+<text text-anchor="middle" x="666.5" y="-102.2" font-family="DejaVu Sans" font-size="11.00">In&#45;order macro issue</text>
+</g>
+<!-- valid&#45;&gt;disp -->
+<g id="edge3" class="edge">
+<title>valid&#45;&gt;disp</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M557.28,-111C568.48,-111 579.81,-111 590.73,-111"/>
+<polygon fill="#936238" stroke="#936238" points="590.83,-113.45 597.83,-111 590.83,-108.55 590.83,-113.45"/>
+</g>
+<!-- events -->
+<g id="node4" class="node">
+<title>events</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M1952,-229C1952,-229 1808,-229 1808,-229 1802,-229 1796,-223 1796,-217 1796,-217 1796,-203 1796,-203 1796,-197 1802,-191 1808,-191 1808,-191 1952,-191 1952,-191 1958,-191 1964,-197 1964,-203 1964,-203 1964,-217 1964,-217 1964,-223 1958,-229 1952,-229"/>
+<text text-anchor="middle" x="1880" y="-213.2" font-family="DejaVu Sans" font-size="11.00">EventScoreboard</text>
+<text text-anchor="middle" x="1880" y="-201.2" font-family="DejaVu Sans" font-size="11.00">slot + generation + epoch</text>
+</g>
+<!-- events&#45;&gt;disp -->
+<g id="edge4" class="edge">
+<title>events&#45;&gt;disp</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1795.78,-220.63C1729.47,-228.19 1634.19,-237 1550.5,-237 918.5,-237 918.5,-237 918.5,-237 828.44,-237 737.67,-171.41 694.1,-134.87"/>
+<polygon fill="#936238" stroke="#936238" points="695.45,-132.8 688.52,-130.14 692.27,-136.53 695.45,-132.8"/>
+<text text-anchor="middle" x="1264.5" y="-239.8" font-family="DejaVu Sans" font-size="9.00">Dependencies ready</text>
+</g>
+<!-- res -->
+<g id="node5" class="node">
+<title>res</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M1987,-152C1987,-152 1773,-152 1773,-152 1767,-152 1761,-146 1761,-140 1761,-140 1761,-126 1761,-126 1761,-120 1767,-114 1773,-114 1773,-114 1987,-114 1987,-114 1993,-114 1999,-120 1999,-126 1999,-126 1999,-140 1999,-140 1999,-146 1993,-152 1987,-152"/>
+<text text-anchor="middle" x="1880" y="-136.2" font-family="DejaVu Sans" font-size="11.00">ResourceChecker</text>
+<text text-anchor="middle" x="1880" y="-124.2" font-family="DejaVu Sans" font-size="11.00">Unit queue / bank / slot / return credits</text>
+</g>
+<!-- res&#45;&gt;disp -->
+<g id="edge5" class="edge">
+<title>res&#45;&gt;disp</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1837.93,-113.96C1810.95,-102.28 1774.56,-88.06 1741,-80 1658.22,-60.12 1635.63,-60 1550.5,-60 918.5,-60 918.5,-60 918.5,-60 854.9,-60 784.02,-75.92 733.85,-89.97"/>
+<polygon fill="#936238" stroke="#936238" points="732.97,-87.67 726.91,-91.94 734.31,-92.38 732.97,-87.67"/>
+<text text-anchor="middle" x="1264.5" y="-62.8" font-family="DejaVu Sans" font-size="9.00">Resources available</text>
+</g>
+<!-- units -->
+<g id="node7" class="node">
+<title>units</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M1362,-161C1362,-161 1167,-161 1167,-161 1161,-161 1155,-155 1155,-149 1155,-149 1155,-137 1155,-137 1155,-131 1161,-125 1167,-125 1167,-125 1362,-125 1362,-125 1368,-125 1374,-131 1374,-137 1374,-137 1374,-149 1374,-149 1374,-155 1368,-161 1362,-161"/>
+<text text-anchor="middle" x="1264.5" y="-140.2" font-family="DejaVu Sans" font-size="11.00">MPU / VPU / DMA command queues</text>
+</g>
+<!-- disp&#45;&gt;units -->
+<g id="edge6" class="edge">
+<title>disp&#45;&gt;units</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M735.29,-114.64C835.65,-120.03 1025.08,-130.2 1147.71,-136.78"/>
+<polygon fill="#936238" stroke="#936238" points="1147.84,-139.24 1154.96,-137.17 1148.1,-134.35 1147.84,-139.24"/>
+</g>
+<!-- acu -->
+<g id="node8" class="node">
+<title>acu</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M997,-199C997,-199 842,-199 842,-199 836,-199 830,-193 830,-187 830,-187 830,-161 830,-161 830,-155 836,-149 842,-149 842,-149 997,-149 997,-149 1003,-149 1009,-155 1009,-161 1009,-161 1009,-187 1009,-187 1009,-193 1003,-199 997,-199"/>
+<text text-anchor="middle" x="919.5" y="-183.2" font-family="DejaVu Sans" font-size="11.00">Acu</text>
+<text text-anchor="middle" x="919.5" y="-171.2" font-family="DejaVu Sans" font-size="11.00">Attention tile FSM</text>
+<text text-anchor="middle" x="919.5" y="-159.2" font-family="DejaVu Sans" font-size="11.00">Serial / lookahead candidate</text>
+</g>
+<!-- disp&#45;&gt;acu -->
+<g id="edge7" class="edge">
+<title>disp&#45;&gt;acu</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M735.09,-127.97C761.98,-134.71 793.4,-142.6 822.57,-149.92"/>
+<polygon fill="#936238" stroke="#936238" points="822.15,-152.34 829.54,-151.67 823.34,-147.59 822.15,-152.34"/>
+<text text-anchor="middle" x="782.5" y="-148.8" font-family="DejaVu Sans" font-size="9.00">ATTN macro</text>
+</g>
+<!-- ret -->
+<g id="node9" class="node">
+<title>ret</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M1630,-162C1630,-162 1469,-162 1469,-162 1463,-162 1457,-156 1457,-150 1457,-150 1457,-136 1457,-136 1457,-130 1463,-124 1469,-124 1469,-124 1630,-124 1630,-124 1636,-124 1642,-130 1642,-136 1642,-136 1642,-150 1642,-150 1642,-156 1636,-162 1630,-162"/>
+<text text-anchor="middle" x="1549.5" y="-146.2" font-family="DejaVu Sans" font-size="11.00">CompletionCollector</text>
+<text text-anchor="middle" x="1549.5" y="-134.2" font-family="DejaVu Sans" font-size="11.00">Destination ACK / B response</text>
+</g>
+<!-- units&#45;&gt;ret -->
+<g id="edge9" class="edge">
+<title>units&#45;&gt;ret</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1374.11,-143C1398.93,-143 1425.19,-143 1449.59,-143"/>
+<polygon fill="#936238" stroke="#936238" points="1449.75,-145.45 1456.75,-143 1449.75,-140.55 1449.75,-145.45"/>
+<text text-anchor="middle" x="1415.5" y="-145.8" font-family="DejaVu Sans" font-size="9.00">UnitDone</text>
+</g>
+<!-- acu&#45;&gt;units -->
+<g id="edge8" class="edge">
+<title>acu&#45;&gt;units</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1009.28,-165.98C1051.48,-162.16 1102.48,-157.55 1147.68,-153.47"/>
+<polygon fill="#936238" stroke="#936238" points="1148.13,-155.89 1154.88,-152.82 1147.69,-151.01 1148.13,-155.89"/>
+<text text-anchor="middle" x="1082" y="-165.8" font-family="DejaVu Sans" font-size="9.00">QK/PV + VPU + KV jobs</text>
+</g>
+<!-- ret&#45;&gt;events -->
+<g id="edge10" class="edge">
+<title>ret&#45;&gt;events</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1642.01,-161.66C1687.87,-171.02 1743.22,-182.31 1788.89,-191.62"/>
+<polygon fill="#936238" stroke="#936238" points="1788.5,-194.04 1795.85,-193.04 1789.48,-189.24 1788.5,-194.04"/>
+<text text-anchor="middle" x="1701.5" y="-182.8" font-family="DejaVu Sans" font-size="9.00">Commit event</text>
+</g>
+<!-- ret&#45;&gt;res -->
+<g id="edge11" class="edge">
+<title>ret&#45;&gt;res</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1642.01,-140.21C1676.53,-139.16 1716.44,-137.95 1753.54,-136.82"/>
+<polygon fill="#936238" stroke="#936238" points="1754,-139.26 1760.92,-136.59 1753.85,-134.36 1754,-139.26"/>
+<text text-anchor="middle" x="1701.5" y="-141.8" font-family="DejaVu Sans" font-size="9.00">Release credits</text>
+</g>
+<!-- fault -->
+<g id="node10" class="node">
+<title>fault</title>
+<path fill="#fbe9e7" stroke="#6482a6" d="M1968.5,-61C1968.5,-61 1791.5,-61 1791.5,-61 1785.5,-61 1779.5,-55 1779.5,-49 1779.5,-49 1779.5,-35 1779.5,-35 1779.5,-29 1785.5,-23 1791.5,-23 1791.5,-23 1968.5,-23 1968.5,-23 1974.5,-23 1980.5,-29 1980.5,-35 1980.5,-35 1980.5,-49 1980.5,-49 1980.5,-55 1974.5,-61 1968.5,-61"/>
+<text text-anchor="middle" x="1880" y="-45.2" font-family="DejaVu Sans" font-size="11.00">FaultController / perf</text>
+<text text-anchor="middle" x="1880" y="-33.2" font-family="DejaVu Sans" font-size="11.00">Stop issue &#45;&gt; drain &#45;&gt; faultDone</text>
+</g>
+<!-- ret&#45;&gt;fault -->
+<g id="edge12" class="edge">
+<title>ret&#45;&gt;fault</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1612.67,-123.88C1668.98,-106.57 1751.79,-81.11 1810.09,-63.19"/>
+<polygon fill="#936238" stroke="#936238" points="1811.11,-65.44 1817.08,-61.04 1809.67,-60.75 1811.11,-65.44"/>
+<text text-anchor="middle" x="1701.5" y="-109.8" font-family="DejaVu Sans" font-size="9.00">Status / counters</text>
+</g>
+<!-- fault&#45;&gt;disp -->
+<g id="edge13" class="edge">
+<title>fault&#45;&gt;disp</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1781.67,-22.97C1716.52,-11.85 1628.69,0 1550.5,0 918.5,0 918.5,0 918.5,0 832.54,0 743.09,-55.12 697.75,-87.68"/>
+<polygon fill="#936238" stroke="#936238" points="696.14,-85.82 691.92,-91.92 699.02,-89.78 696.14,-85.82"/>
+<text text-anchor="middle" x="1264.5" y="-2.8" font-family="DejaVu Sans" font-size="9.00">Stop / epoch control</text>
+</g>
+</g>
+</svg>
+</div></section><section id="09_attention"><h2>9. Online Attention数据流与依赖</h2><p>旧m/l/o必须整tile提交后才供下一tile状态更新；下一tile的QK和score/max可以提前计算。FP32 p用于l，BF16 p用于PV，是当前待精度验证的数值模式。</p><div class="canvas"><svg width="2199pt" height="397pt"
+ viewBox="0.00 0.00 2199.00 397.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 379)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-379 2181,-379 2181,18 -18,18"/>
+<!-- qk -->
+<g id="node1" class="node">
+<title>qk</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M56,-163C56,-163 12,-163 12,-163 6,-163 0,-157 0,-151 0,-151 0,-139 0,-139 0,-133 6,-127 12,-127 12,-127 56,-127 56,-127 62,-127 68,-133 68,-139 68,-139 68,-151 68,-151 68,-157 62,-163 56,-163"/>
+<text text-anchor="middle" x="34" y="-142.2" font-family="DejaVu Sans" font-size="11.00">MPU QK</text>
+</g>
+<!-- score -->
+<g id="node2" class="node">
+<title>score</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M285,-163C285,-163 121,-163 121,-163 115,-163 109,-157 109,-151 109,-151 109,-139 109,-139 109,-133 115,-127 121,-127 121,-127 285,-127 285,-127 291,-127 297,-133 297,-139 297,-139 297,-151 297,-151 297,-157 291,-163 285,-163"/>
+<text text-anchor="middle" x="203" y="-142.2" font-family="DejaVu Sans" font-size="11.00">ScoreStore + fused head MAX</text>
+</g>
+<!-- qk&#45;&gt;score -->
+<g id="edge1" class="edge">
+<title>qk&#45;&gt;score</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M68.39,-145C78.34,-145 89.79,-145 101.72,-145"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="101.79,-147.45 108.79,-145 101.79,-142.55 101.79,-147.45"/>
+</g>
+<!-- newm -->
+<g id="node4" class="node">
+<title>newm</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M530,-205C530,-205 381,-205 381,-205 375,-205 369,-199 369,-193 369,-193 369,-179 369,-179 369,-173 375,-167 381,-167 381,-167 530,-167 530,-167 536,-167 542,-173 542,-179 542,-179 542,-193 542,-193 542,-199 536,-205 530,-205"/>
+<text text-anchor="middle" x="455.5" y="-189.2" font-family="DejaVu Sans" font-size="11.00">mNew=max(mOld,tileMax)</text>
+<text text-anchor="middle" x="455.5" y="-177.2" font-family="DejaVu Sans" font-size="11.00">alpha=exp(mOld&#45;mNew)</text>
+</g>
+<!-- score&#45;&gt;newm -->
+<g id="edge2" class="edge">
+<title>score&#45;&gt;newm</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M297.28,-160.27C318.27,-163.7 340.55,-167.35 361.54,-170.78"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="361.29,-173.23 368.6,-171.94 362.09,-168.39 361.29,-173.23"/>
+<text text-anchor="middle" x="333" y="-169.8" font-family="DejaVu Sans" font-size="9.00">tileMax</text>
+</g>
+<!-- prob -->
+<g id="node5" class="node">
+<title>prob</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M761,-146C761,-146 623,-146 623,-146 617,-146 611,-140 611,-134 611,-134 611,-120 611,-120 611,-114 617,-108 623,-108 623,-108 761,-108 761,-108 767,-108 773,-114 773,-120 773,-120 773,-134 773,-134 773,-140 767,-146 761,-146"/>
+<text text-anchor="middle" x="692" y="-130.2" font-family="DejaVu Sans" font-size="11.00">VPU subtract + EXP</text>
+<text text-anchor="middle" x="692" y="-118.2" font-family="DejaVu Sans" font-size="11.00">pFP32=exp(score&#45;mNew)</text>
+</g>
+<!-- score&#45;&gt;prob -->
+<g id="edge4" class="edge">
+<title>score&#45;&gt;prob</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M297.03,-141.56C385.38,-138.3 517.19,-133.42 603.62,-130.23"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="603.9,-132.67 610.8,-129.96 603.72,-127.77 603.9,-132.67"/>
+<text text-anchor="middle" x="455.5" y="-140.8" font-family="DejaVu Sans" font-size="9.00">FP32 scores</text>
+</g>
+<!-- old -->
+<g id="node3" class="node">
+<title>old</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M1916.5,-262C1916.5,-262 1818.5,-262 1818.5,-262 1812.5,-262 1806.5,-256 1806.5,-250 1806.5,-250 1806.5,-236 1806.5,-236 1806.5,-230 1812.5,-224 1818.5,-224 1818.5,-224 1916.5,-224 1916.5,-224 1922.5,-224 1928.5,-230 1928.5,-236 1928.5,-236 1928.5,-250 1928.5,-250 1928.5,-256 1922.5,-262 1916.5,-262"/>
+<text text-anchor="middle" x="1867.5" y="-246.2" font-family="DejaVu Sans" font-size="11.00">Committed state</text>
+<text text-anchor="middle" x="1867.5" y="-234.2" font-family="DejaVu Sans" font-size="11.00">mOld / lOld / oOld</text>
+</g>
+<!-- old&#45;&gt;newm -->
+<g id="edge3" class="edge">
+<title>old&#45;&gt;newm</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1806.26,-250.63C1721.76,-260.65 1563.19,-277 1427.5,-277 691,-277 691,-277 691,-277 615.72,-277 535.49,-235.73 491.11,-208.78"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="492.34,-206.66 485.09,-205.08 489.77,-210.83 492.34,-206.66"/>
+<text text-anchor="middle" x="1097" y="-279.8" font-family="DejaVu Sans" font-size="9.00">mOld / lOld</text>
+</g>
+<!-- ls -->
+<g id="node7" class="node">
+<title>ls</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M2151,-114C2151,-114 2027,-114 2027,-114 2021,-114 2015,-108 2015,-102 2015,-102 2015,-88 2015,-88 2015,-82 2021,-76 2027,-76 2027,-76 2151,-76 2151,-76 2157,-76 2163,-82 2163,-88 2163,-88 2163,-102 2163,-102 2163,-108 2157,-114 2151,-114"/>
+<text text-anchor="middle" x="2089" y="-98.2" font-family="DejaVu Sans" font-size="11.00">SUM(pFP32)</text>
+<text text-anchor="middle" x="2089" y="-86.2" font-family="DejaVu Sans" font-size="11.00">lNew=alpha*lOld+tileL</text>
+</g>
+<!-- old&#45;&gt;ls -->
+<g id="edge10" class="edge">
+<title>old&#45;&gt;ls</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1928.67,-224.4C1937.41,-220.79 1946.11,-216.65 1954,-212 1997.71,-186.22 2040.51,-145.34 2065.57,-119.35"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="2067.57,-120.8 2070.64,-114.05 2064.03,-117.42 2067.57,-120.8"/>
+<text text-anchor="middle" x="1984.5" y="-200.8" font-family="DejaVu Sans" font-size="9.00">lOld</text>
+</g>
+<!-- scale -->
+<g id="node8" class="node">
+<title>scale</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M2145.5,-319C2145.5,-319 2032.5,-319 2032.5,-319 2026.5,-319 2020.5,-313 2020.5,-307 2020.5,-307 2020.5,-293 2020.5,-293 2020.5,-287 2026.5,-281 2032.5,-281 2032.5,-281 2145.5,-281 2145.5,-281 2151.5,-281 2157.5,-287 2157.5,-293 2157.5,-293 2157.5,-307 2157.5,-307 2157.5,-313 2151.5,-319 2145.5,-319"/>
+<text text-anchor="middle" x="2089" y="-303.2" font-family="DejaVu Sans" font-size="11.00">MUL32</text>
+<text text-anchor="middle" x="2089" y="-291.2" font-family="DejaVu Sans" font-size="11.00">scaledO=alpha*oOld</text>
+</g>
+<!-- old&#45;&gt;scale -->
+<g id="edge9" class="edge">
+<title>old&#45;&gt;scale</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1928.6,-255.22C1949.69,-259.79 1973.48,-265.27 1995,-271 2004.07,-273.41 2013.59,-276.15 2022.92,-278.94"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="2022.27,-281.31 2029.68,-280.99 2023.69,-276.62 2022.27,-281.31"/>
+<text text-anchor="middle" x="1984.5" y="-273.8" font-family="DejaVu Sans" font-size="9.00">oOld</text>
+</g>
+<!-- newm&#45;&gt;prob -->
+<g id="edge5" class="edge">
+<title>newm&#45;&gt;prob</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M532.31,-166.93C556.65,-160.8 583.73,-153.99 608.52,-147.75"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="609.26,-150.09 615.45,-146.01 608.06,-145.34 609.26,-150.09"/>
+<text text-anchor="middle" x="576.5" y="-160.8" font-family="DejaVu Sans" font-size="9.00">mNew</text>
+</g>
+<!-- newm&#45;&gt;ls -->
+<g id="edge11" class="edge">
+<title>newm&#45;&gt;ls</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M517.92,-166.83C526.31,-163.13 534.58,-158.86 542,-154 621.66,-101.81 595.76,0 691,0 691,0 691,0 1868.5,0 1940.53,0 2015.73,-43.62 2056.73,-71.75"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="2055.38,-73.79 2062.52,-75.78 2058.18,-69.77 2055.38,-73.79"/>
+<text text-anchor="middle" x="1201.5" y="-2.8" font-family="DejaVu Sans" font-size="9.00">alpha</text>
+</g>
+<!-- newm&#45;&gt;scale -->
+<g id="edge8" class="edge">
+<title>newm&#45;&gt;scale</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M470.22,-205.25C503.01,-248.78 590.69,-351 691,-351 691,-351 691,-351 1868.5,-351 1924.02,-351 1985.43,-335.33 2029.15,-321.36"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="2030.11,-323.63 2036.01,-319.14 2028.6,-318.96 2030.11,-323.63"/>
+<text text-anchor="middle" x="1201.5" y="-353.8" font-family="DejaVu Sans" font-size="9.00">alpha</text>
+</g>
+<!-- commit -->
+<g id="node11" class="node">
+<title>commit</title>
+<path fill="#fff2d9" stroke="#6482a6" d="M1641,-188C1641,-188 1481,-188 1481,-188 1475,-188 1469,-182 1469,-176 1469,-176 1469,-162 1469,-162 1469,-156 1475,-150 1481,-150 1481,-150 1641,-150 1641,-150 1647,-150 1653,-156 1653,-162 1653,-162 1653,-176 1653,-176 1653,-182 1647,-188 1641,-188"/>
+<text text-anchor="middle" x="1561" y="-172.2" font-family="DejaVu Sans" font-size="11.00">Commit mNew / lNew / oNew</text>
+<text text-anchor="middle" x="1561" y="-160.2" font-family="DejaVu Sans" font-size="11.00">All destination ACKs</text>
+</g>
+<!-- newm&#45;&gt;commit -->
+<g id="edge17" class="edge">
+<title>newm&#45;&gt;commit</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M542.23,-190.87C586.62,-192.99 641.7,-195 691,-195 691,-195 691,-195 1318,-195 1365.53,-195 1418.01,-189.98 1461.92,-184.35"/>
+<polygon fill="#936238" stroke="#936238" points="1462.27,-186.78 1468.89,-183.44 1461.63,-181.92 1462.27,-186.78"/>
+<text text-anchor="middle" x="992" y="-197.8" font-family="DejaVu Sans" font-size="9.00">mNew ready</text>
+</g>
+<!-- ps -->
+<g id="node6" class="node">
+<title>ps</title>
+<path fill="#e5f5ed" stroke="#6482a6" d="M931,-150C931,-150 845,-150 845,-150 839,-150 833,-144 833,-138 833,-138 833,-124 833,-124 833,-118 839,-112 845,-112 845,-112 931,-112 931,-112 937,-112 943,-118 943,-124 943,-124 943,-138 943,-138 943,-144 937,-150 931,-150"/>
+<text text-anchor="middle" x="888" y="-134.2" font-family="DejaVu Sans" font-size="11.00">ProbabilityStore</text>
+<text text-anchor="middle" x="888" y="-122.2" font-family="DejaVu Sans" font-size="11.00">pBF16 for PV</text>
+</g>
+<!-- prob&#45;&gt;ps -->
+<g id="edge6" class="edge">
+<title>prob&#45;&gt;ps</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M773.03,-128.65C790.65,-129.01 809.05,-129.39 825.79,-129.74"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="825.81,-132.19 832.86,-129.88 825.91,-127.29 825.81,-132.19"/>
+<text text-anchor="middle" x="803" y="-131.8" font-family="DejaVu Sans" font-size="9.00">Cast</text>
+</g>
+<!-- prob&#45;&gt;ls -->
+<g id="edge7" class="edge">
+<title>prob&#45;&gt;ls</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M727.97,-107.97C765.96,-89.11 829.01,-63 887,-63 887,-63 887,-63 1868.5,-63 1915.01,-63 1966.48,-70.12 2007.89,-77.64"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="2007.64,-80.09 2014.97,-78.95 2008.53,-75.27 2007.64,-80.09"/>
+<text text-anchor="middle" x="1317" y="-65.8" font-family="DejaVu Sans" font-size="9.00">FP32 fork</text>
+</g>
+<!-- pv -->
+<g id="node9" class="node">
+<title>pv</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1141,-150C1141,-150 1053,-150 1053,-150 1047,-150 1041,-144 1041,-138 1041,-138 1041,-124 1041,-124 1041,-118 1047,-112 1053,-112 1053,-112 1141,-112 1141,-112 1147,-112 1153,-118 1153,-124 1153,-124 1153,-138 1153,-138 1153,-144 1147,-150 1141,-150"/>
+<text text-anchor="middle" x="1097" y="-134.2" font-family="DejaVu Sans" font-size="11.00">MPU PV</text>
+<text text-anchor="middle" x="1097" y="-122.2" font-family="DejaVu Sans" font-size="11.00">SUM(pBF16 x V)</text>
+</g>
+<!-- ps&#45;&gt;pv -->
+<g id="edge12" class="edge">
+<title>ps&#45;&gt;pv</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M943.12,-131C970.83,-131 1004.72,-131 1033.55,-131"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1033.76,-133.45 1040.76,-131 1033.76,-128.55 1033.76,-133.45"/>
+<text text-anchor="middle" x="992" y="-133.8" font-family="DejaVu Sans" font-size="9.00">P ready</text>
+</g>
+<!-- ls&#45;&gt;commit -->
+<g id="edge16" class="edge">
+<title>ls&#45;&gt;commit</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M2014.61,-105.33C1922.12,-118.34 1762.85,-140.74 1660.02,-155.21"/>
+<polygon fill="#936238" stroke="#936238" points="1659.61,-152.79 1653.02,-156.19 1660.29,-157.65 1659.61,-152.79"/>
+<text text-anchor="middle" x="1867.5" y="-140.8" font-family="DejaVu Sans" font-size="9.00">lNew ready</text>
+</g>
+<!-- merge -->
+<g id="node10" class="node">
+<title>merge</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1372,-157C1372,-157 1262,-157 1262,-157 1256,-157 1250,-151 1250,-145 1250,-145 1250,-131 1250,-131 1250,-125 1256,-119 1262,-119 1262,-119 1372,-119 1372,-119 1378,-119 1384,-125 1384,-131 1384,-131 1384,-145 1384,-145 1384,-151 1378,-157 1372,-157"/>
+<text text-anchor="middle" x="1317" y="-141.2" font-family="DejaVu Sans" font-size="11.00">ADD32 / NewO bank</text>
+<text text-anchor="middle" x="1317" y="-129.2" font-family="DejaVu Sans" font-size="11.00">oNew=scaledO+PV</text>
+</g>
+<!-- scale&#45;&gt;merge -->
+<g id="edge13" class="edge">
+<title>scale&#45;&gt;merge</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M2020.27,-297.44C1957.83,-294.37 1862.73,-287.94 1781,-275 1640.24,-252.71 1604.54,-245.03 1469,-201 1433.46,-189.46 1394.57,-173.14 1365.16,-160.01"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1366.05,-157.72 1358.66,-157.08 1364.04,-162.19 1366.05,-157.72"/>
+<text text-anchor="middle" x="1717" y="-273.8" font-family="DejaVu Sans" font-size="9.00">ScaledO</text>
+</g>
+<!-- pv&#45;&gt;merge -->
+<g id="edge14" class="edge">
+<title>pv&#45;&gt;merge</title>
+<path fill="none" stroke="#326b70" stroke-width="1.4" d="M1153.01,-132.77C1180.1,-133.64 1213.15,-134.7 1242.39,-135.64"/>
+<polygon fill="#326b70" stroke="#326b70" stroke-width="1.4" points="1242.66,-138.1 1249.73,-135.87 1242.81,-133.2 1242.66,-138.1"/>
+<text text-anchor="middle" x="1201.5" y="-137.8" font-family="DejaVu Sans" font-size="9.00">Contribution</text>
+</g>
+<!-- merge&#45;&gt;commit -->
+<g id="edge15" class="edge">
+<title>merge&#45;&gt;commit</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1384.13,-146.47C1408.02,-149.53 1435.54,-153.06 1461.6,-156.4"/>
+<polygon fill="#936238" stroke="#936238" points="1461.3,-158.83 1468.55,-157.29 1461.92,-153.97 1461.3,-158.83"/>
+<text text-anchor="middle" x="1426.5" y="-156.8" font-family="DejaVu Sans" font-size="9.00">Write ACK</text>
+</g>
+<!-- commit&#45;&gt;old -->
+<g id="edge18" class="edge">
+<title>commit&#45;&gt;old</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1640.42,-188.06C1689.63,-200.02 1752.42,-215.28 1799.33,-226.68"/>
+<polygon fill="#936238" stroke="#936238" points="1798.75,-229.06 1806.13,-228.33 1799.91,-224.3 1798.75,-229.06"/>
+<text text-anchor="middle" x="1717" y="-218.8" font-family="DejaVu Sans" font-size="9.00">Next version visible</text>
+</g>
+<!-- final -->
+<g id="node12" class="node">
+<title>final</title>
+<path fill="#eaf2ff" stroke="#6482a6" d="M1942,-199C1942,-199 1793,-199 1793,-199 1787,-199 1781,-193 1781,-187 1781,-187 1781,-173 1781,-173 1781,-167 1787,-161 1793,-161 1793,-161 1942,-161 1942,-161 1948,-161 1954,-167 1954,-173 1954,-173 1954,-187 1954,-187 1954,-193 1948,-199 1942,-199"/>
+<text text-anchor="middle" x="1867.5" y="-183.2" font-family="DejaVu Sans" font-size="11.00">After last tile</text>
+<text text-anchor="middle" x="1867.5" y="-171.2" font-family="DejaVu Sans" font-size="11.00">RECIP(l) &#45;&gt; MUL(o) &#45;&gt; BF16</text>
+</g>
+<!-- commit&#45;&gt;final -->
+<g id="edge19" class="edge">
+<title>commit&#45;&gt;final</title>
+<path fill="none" stroke="#936238" stroke-dasharray="5,2" d="M1653.36,-172.3C1691.46,-173.68 1735.64,-175.27 1773.87,-176.65"/>
+<polygon fill="#936238" stroke="#936238" points="1773.85,-179.1 1780.94,-176.91 1774.03,-174.21 1773.85,-179.1"/>
+<text text-anchor="middle" x="1717" y="-178.8" font-family="DejaVu Sans" font-size="9.00">Last tile</text>
+</g>
+</g>
+</svg>
+</div></section><small>Generated from current v0.5 design contracts. SVG/DOT sources available beside this document.</small></main></html>

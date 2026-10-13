@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "spec_version": "0.5",
+  "model": {"hidden":4096,"ffn":12288,"layers":36,"q_heads":32,"kv_heads":8,"head_dim":128,"vocab":151936,"group_size":128},
+  "core_hz_target": 200000000,
+  "mpu": {"tiles":128,"products_per_tile":8,"group_dot_count":16,"group_reduce_rows_per_cycle":8,"group_reduce_adders":[64,32,16,8],"scale_lanes":8,"total_banks":8,"result_rows_per_beat":32},
+  "vpu": {"lanes":32,"sfu_request_lanes":32,"mul_lanes":32,"add_lanes":32,"reducer_lanes":32,"logical_block_elements":256},
+  "memory": {"kv_tokens_per_slot":128,"kv_slots_baseline":2,"kv_slot_bytes":524288,"kv_slots_candidate":3,"vector_bank_elements":32,"axi_logical_bytes":64,"logical_read_channels":14,"max_context_addressing":32768},
+  "prefill": {"query_block":32,"query_microbatch":4,"output_microtile":32,"output_tile":128,"online_qheads_per_kvhead":4},
+  "ip_required_measurements": {"fp32_mul_latency":null,"fp32_add_latency":null,"fp32_add_ii":null,"exp_latency":null,"reciprocal_latency":null,"rsqrt_latency":null,"sfu_ii":null,"ram_read_latency":null,"floating_point_mode":null},
+  "simulation_defaults_only": {"fp32_add_latency":8,"fp32_mul_latency":6,"ram_read_latency":2,"sfu_latency":16,"scalar_latency":16,"hbm_first_beat_latency":40,"hbm_effective_bytes_per_cycle":716}
+}

@@ -1,0 +1,27 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.25",nodesep="0.35",ranksep="0.55",fontname="DejaVu Sans"];
+node [shape=box,style="rounded,filled",fillcolor="#eaf2ff",color="#6482a6",fontname="DejaVu Sans",fontsize=11,margin="0.15,0.1"];
+edge [fontname="DejaVu Sans",fontsize=9,color="#36546c",arrowsize=0.7];
+x [label="BF16 activation x",fillcolor="#e5f5ed"];
+dec [label="Classify / sign / exponent
+Normalize 8-bit significand",fillcolor="#eaf2ff"];
+coeff [label="Shared integer coefficients
+m, 3m, 5m, 7m",fillcolor="#eaf2ff"];
+q [label="INT4 weights q[0..P-1]
+Signed -8..7",fillcolor="#e5f5ed"];
+sel [label="P parallel select / shift lanes
+Sign XOR / zero / special values",fillcolor="#eaf2ff"];
+fp [label="P FP32 products
+Normalize / exponent adjust",fillcolor="#eaf2ff"];
+map [label="Decode: 128 output rows x K8
+Prefill: 4 queries x 32 rows x K8",fillcolor="#fff2d9"];
+dot [label="DOT8 / group128 / scale",fillcolor="#eaf2ff"];
+x -> dec [label="",color="#326b70",penwidth=1.4];
+dec -> coeff [label="Exact extended mantissa",color="#326b70",penwidth=1.4];
+coeff -> sel [label="Local cluster broadcast",color="#326b70",penwidth=1.4];
+q -> sel [label="Coefficient selection",color="#326b70",penwidth=1.4];
+dec -> sel [label="Sign / exponent / class",color="#326b70",penwidth=1.4];
+sel -> fp [label="",color="#326b70",penwidth=1.4];
+fp -> dot [label="",color="#326b70",penwidth=1.4];
+map -> sel [label="Index / mask / tag",style=dashed,color="#936238"];
+}
