@@ -1,0 +1,34 @@
+digraph G {
+graph[rankdir=LR,bgcolor="white",pad="0.25",nodesep="0.4",ranksep="0.55"];
+node[shape=box,style="rounded,filled",fontname="DejaVu Sans",fontsize=11,color="#6b8197",margin="0.15,0.1"];
+edge[fontname="DejaVu Sans",fontsize=9,arrowsize=0.7];
+ddr[label="DDR old/new state regions
+18 MiB each",fillcolor="#e6f5ee"];
+dma[label="DMA head fetch / writeback",fillcolor="#eaf2ff"];
+cache[label="Three 64 KiB head slots
+16 banks, j mod16",fillcolor="#e6f5ee"];
+coef[label="q / k / v / beta / r
+q,k normalization from VPU",fillcolor="#fff2d9"];
+p1[label="Pass1: Sd=r*S
+u=sum(k*Sd)",fillcolor="#f2e9ff"];
+delta[label="delta=beta*(v-u)",fillcolor="#f2e9ff"];
+p2[label="Pass2: Snew=Sd+k*delta
+o=sum(q*Snew)",fillcolor="#f2e9ff"];
+o[label="A16 o -> gated norm",fillcolor="#eaf2ff"];
+commit[label="State B ACK + version commit",fillcolor="#fff2d9"];
+ddr->dma[label="Read old S",color="#306d73",penwidth=1.3];
+dma->cache[label="Fill next head",color="#306d73",penwidth=1.3];
+cache->p1[label="S",color="#306d73",penwidth=1.3];
+coef->p1[label="r,k",color="#306d73",penwidth=1.3];
+p1->cache[label="Local Sd",color="#306d73",penwidth=1.3];
+p1->delta[label="u",color="#306d73",penwidth=1.3];
+coef->delta[label="v,beta",color="#306d73",penwidth=1.3];
+cache->p2[label="Sd",color="#306d73",penwidth=1.3];
+delta->p2[label="delta",color="#306d73",penwidth=1.3];
+coef->p2[label="q,k",color="#306d73",penwidth=1.3];
+p2->cache[label="Dirty Snew",color="#306d73",penwidth=1.3];
+p2->o[label="o",color="#306d73",penwidth=1.3];
+cache->dma[label="Write previous dirty head",color="#306d73",penwidth=1.3];
+dma->ddr[label="New S",color="#306d73",penwidth=1.3];
+dma->commit[label="All B responses",style=dashed,color="#986336"];
+}

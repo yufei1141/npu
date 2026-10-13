@@ -1,0 +1,130 @@
+[
+  {
+    "file": "model_config.json",
+    "url": "https://huggingface.co/openbmb/MiniCPM-V-4.7-1B-GPTQ/resolve/main/config.json",
+    "status": "ok",
+    "bytes": 4655,
+    "sha256": "6a6ce57ad6a0f3ee5f66add5ddc8b1f25e5e2ef692d5d99402efd15f5b079691"
+  },
+  {
+    "file": "quantize_config.json",
+    "url": "https://huggingface.co/openbmb/MiniCPM-V-4.7-1B-GPTQ/resolve/main/quantize_config.json",
+    "status": "ok",
+    "bytes": 315,
+    "sha256": "4c60987db223961cc57125cd812bd05551170208c88c3f36ff1f08213bc1f79c"
+  },
+  {
+    "file": "weight_index.json",
+    "url": "https://huggingface.co/openbmb/MiniCPM-V-4.7-1B-GPTQ/resolve/main/model.safetensors.index.json",
+    "status": "ok",
+    "bytes": 102374,
+    "sha256": "008f1064bddcbe8db845dbed14a1becac22d9598db6a3270d91f392c6df5705e"
+  },
+  {
+    "file": "model_card.md",
+    "url": "https://huggingface.co/openbmb/MiniCPM-V-4.7-1B-GPTQ/resolve/main/README.md",
+    "status": "ok",
+    "bytes": 17901,
+    "sha256": "6b63952de017af766844893e2247ae69b373cfb23d86474ac39a40bbf0efef99"
+  },
+  {
+    "file": "qwen35_modeling.py",
+    "url": "https://raw.githubusercontent.com/huggingface/transformers/main/src/transformers/models/qwen3_5/modeling_qwen3_5.py",
+    "status": "ok",
+    "bytes": 87833,
+    "sha256": "496958ed2dc0bbf3d2ca0c0368cee9129742f08a79104c0951f505ac29d5a4e0"
+  },
+  {
+    "file": "minicpm_modeling.py",
+    "url": "https://raw.githubusercontent.com/huggingface/transformers/main/src/transformers/models/minicpmv4_7/modeling_minicpmv4_7.py",
+    "status": "ok",
+    "bytes": 63918,
+    "sha256": "2ac52bbe1615eb1d02cf4cce981ed4d20a9dc11116ee50bb92d0a2aaf227dd42"
+  },
+  {
+    "file": "rknn_readme.md",
+    "url": "https://raw.githubusercontent.com/airockchip/rknn-toolkit2/master/README.md",
+    "status": "ok",
+    "bytes": 4128,
+    "sha256": "d7d8f2c3b66919ef2970db6404e28eee28be56b71061374978a2edc33f55a860"
+  },
+  {
+    "file": "rknn_multicore.md",
+    "url": "https://raw.githubusercontent.com/airockchip/rknn_model_zoo/main/README.md",
+    "status": "ok",
+    "bytes": 30509,
+    "sha256": "1f0081537ce2526472421440bb909026c41e0539125796b6d6e9345df10d8d8a"
+  },
+  {
+    "file": "gemmini_readme.md",
+    "url": "https://raw.githubusercontent.com/ucb-bar/gemmini/master/README.md",
+    "status": "ok",
+    "bytes": 40587,
+    "sha256": "9c5977d88b6ffa0fb04e5a8f878eb984d2f4c8c329539b6c8b29b57f2d2c42b7"
+  },
+  {
+    "file": "nvdla_hw_readme.md",
+    "url": "https://raw.githubusercontent.com/nvdla/hw/master/README.md",
+    "status": "ok",
+    "bytes": 1742,
+    "sha256": "f8ea9f5dd5f31692c4811e860a4f1d7ead0f4b1e471c0a42ab2bb969e1ed39b2"
+  },
+  {
+    "file": "safetensors_metadata.json",
+    "url": "https://huggingface.co/api/models/openbmb/MiniCPM-V-4.7-1B-GPTQ?expand[]=safetensors",
+    "status": "ok",
+    "bytes": 153,
+    "sha256": "76302c7c2882ad077e0da6d8815db1f7b218aa5d039bb8a4a14005ecc46027e5"
+  },
+  {
+    "file": "rkllm_readme.md",
+    "url": "https://raw.githubusercontent.com/airockchip/rknn-llm/main/README.md",
+    "status": "ok",
+    "bytes": 8024,
+    "sha256": "b1f258d927ad3a0ea7033f96865abbc1371127b0176d8e77636d22602f51e0d8"
+  },
+  {
+    "file": "nvdla_architecture.rst",
+    "url": "https://raw.githubusercontent.com/nvdla/doc/master/hw/v1/hwarch.rst",
+    "status": "failed",
+    "error": "HTTP Error 404: Not Found"
+  },
+  {
+    "file": "zcu102_board.xml",
+    "url": "https://raw.githubusercontent.com/Xilinx/XilinxBoardStore/master/boards/Xilinx/zcu102/1.5/board.xml",
+    "status": "failed",
+    "error": "HTTP Error 404: Not Found"
+  },
+  {
+    "file": "zcu102_board14.xml",
+    "url": "https://raw.githubusercontent.com/Xilinx/XilinxBoardStore/master/boards/Xilinx/zcu102/1.4/board.xml",
+    "status": "failed",
+    "error": "HTTP Error 404: Not Found"
+  },
+  {
+    "file": "ug1182.html",
+    "url": "https://docs.amd.com/v/u/en-US/ug1182-zcu102-eval-bd",
+    "status": "failed",
+    "error": "<urlopen error Tunnel connection failed: 403 Forbidden>"
+  },
+  {
+    "file": "nvdla_hwarch.rst",
+    "url": "https://raw.githubusercontent.com/nvdla/doc/master/doc/hw/v1/hwarch.rst",
+    "status": "ok",
+    "bytes": 115616,
+    "sha256": "938d73e9884ef215bf0e65dac9bef3676be607e434deaa7098c857615dd175fb"
+  },
+  {
+    "file": "zcu102_board.xml",
+    "url": "https://raw.githubusercontent.com/Xilinx/XilinxBoardStore/master/boards/Xilinx/zcu102/1.0/board.xml",
+    "status": "failed",
+    "error": "HTTP Error 404: Not Found"
+  },
+  {
+    "file": "qwen35_modular.py",
+    "url": "https://raw.githubusercontent.com/huggingface/transformers/main/src/transformers/models/qwen3_5/modular_qwen3_5.py",
+    "status": "ok",
+    "bytes": 27181,
+    "sha256": "91010655b75e21dff5ff74e4d9e39e485fc4b0b3f5793f192823b609dbd650da"
+  }
+]

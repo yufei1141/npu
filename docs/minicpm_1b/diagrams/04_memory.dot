@@ -1,0 +1,42 @@
+digraph G {
+graph[rankdir=LR,bgcolor="white",pad="0.25",nodesep="0.4",ranksep="0.55"];
+node[shape=box,style="rounded,filled",fontname="DejaVu Sans",fontsize=11,color="#6b8197",margin="0.15,0.1"];
+edge[fontname="DejaVu Sans",fontsize=9,arrowsize=0.7];
+pool[label="DDR region allocator
+64-bit physical addresses",fillcolor="#fff2d9"];
+weight[label="Canonical W4 body
+~258 MB incl scales/zeros",fillcolor="#e6f5ee"];
+head[label="Native16 embedding/head
+508 MB; alias to verify",fillcolor="#e6f5ee"];
+state[label="State old/new journal
+2 x 18 MiB",fillcolor="#e6f5ee"];
+kv[label="Full-attention KV
+48 MiB @4K",fillcolor="#e6f5ee"];
+scratch[label="Prefill hidden / QKV / z / o
+Lifetime-managed DDR scratch",fillcolor="#e6f5ee"];
+rd[label="Read queues / ID / credit
+4 KiB burst split",fillcolor="#eaf2ff"];
+wr[label="Write queues / burst staging
+B-response tracking",fillcolor="#eaf2ff"];
+local[label="Local working set ~1.32 MiB
+Head slots / KV / FFN / partial",fillcolor="#e6f5ee"];
+param[label="Region limits / bank locks
+Cache flush / invalidate",fillcolor="#fff2d9"];
+pool->weight[label="Allocate",style=dashed,color="#986336"];
+pool->head[label="Allocate",style=dashed,color="#986336"];
+pool->state[label="Allocate",style=dashed,color="#986336"];
+pool->kv[label="Allocate",style=dashed,color="#986336"];
+pool->scratch[label="Allocate",style=dashed,color="#986336"];
+weight->rd[label="Weight stream",color="#306d73",penwidth=1.3];
+head->rd[label="Head stream",color="#306d73",penwidth=1.3];
+state->rd[label="Old state",color="#306d73",penwidth=1.3];
+kv->rd[label="Historical KV",color="#306d73",penwidth=1.3];
+scratch->rd[label="Prefill loads",color="#306d73",penwidth=1.3];
+rd->local[label="Reorder / pack / ready",color="#306d73",penwidth=1.3];
+local->wr[label="Store / append",color="#306d73",penwidth=1.3];
+wr->state[label="New state",color="#306d73",penwidth=1.3];
+wr->kv[label="New token K/V",color="#306d73",penwidth=1.3];
+wr->scratch[label="Scratch stores",color="#306d73",penwidth=1.3];
+param->rd[label="Validate / reserve",style=dashed,color="#986336"];
+param->wr[label="Validate / reserve",style=dashed,color="#986336"];
+}

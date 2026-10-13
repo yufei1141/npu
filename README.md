@@ -1,4 +1,8 @@
-# NPU v1：Qwen3-8B 架构设计
+# NPU：可扩展 LLM 加速器架构设计
+
+> 新增：[MiniCPM-V-4.7-1B-GPTQ 纯文本 NPU spec 与规划](docs/minicpm_1b/README.md)，目标 ZCU102 裸金属、200MHz；含5种架构对照、递归状态引擎、完整模块合同及验证脚本。
+>
+> [查看新模型架构图](docs/minicpm_1b/diagrams/README.md) · [下载新模型 spec ZIP](https://github.com/yufei1141/npu/raw/refs/heads/main/downloads/minicpm_1b_npu_spec.zip)
 
 基于 SpinalHDL 的 LLM 推理加速器设计，目标支持单序列 **prefill + decode**。
 

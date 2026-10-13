@@ -1,0 +1,17 @@
+{
+  "result": "passed",
+  "descriptor_sizes": {
+    "macro": 64,
+    "tensor": 64,
+    "gdn_ext": 64
+  },
+  "state_entries": 16384,
+  "kv_entries_each": 16384,
+  "group_slots": {
+    "output_stationary": 2,
+    "dot_old_example": 4,
+    "pv_short_tile": 3,
+    "head_contexts": 4
+  },
+  "scope": "logical addresses/ABI/invariants; physical RAM ports and real DMA still unvalidated"
+}

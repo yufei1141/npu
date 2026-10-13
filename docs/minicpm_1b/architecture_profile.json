@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "model": "openbmb/MiniCPM-V-4.7-1B-GPTQ",
+  "scope": "pure_text_prefill_decode",
+  "clock_target_hz": 200000000,
+  "board": "ZCU102",
+  "runtime": "A53_bare_metal",
+  "act_format": "FP16_or_BF16_after_loader_validation",
+  "mpu": {
+    "w4_products": 64,
+    "a16_products": 32,
+    "partial_contexts_initial": 16,
+    "group": 128,
+    "scale_lanes": 2,
+    "total_banks": 2,
+    "prefill_query_microbatch": 4,
+    "prefill_output_microtile": 16,
+    "a16_attention_group_slots_min_example": 3,
+    "head_row_contexts_initial": 4
+  },
+  "rpu": {
+    "fp32_mul_lanes": 16,
+    "fp32_add_lanes": 16,
+    "state_heads_per_linear_layer": 16,
+    "key_dim": 128,
+    "value_dim": 128,
+    "head_cache_slots": 3,
+    "head_cache_bytes": 65536,
+    "journal": true
+  },
+  "vpu": {
+    "mul_lanes": 16,
+    "add_lanes": 16,
+    "sfu_request_lanes": 4,
+    "sfu_ops": [
+      "EXP",
+      "RECIP",
+      "RSQRT",
+      "SOFTPLUS"
+    ]
+  },
+  "memory": {
+    "kv_tile_tokens": 32,
+    "kv_slots": 2,
+    "kv_slot_bytes": 65536,
+    "default_context": 4096,
+    "logical_local_budget_bytes": 1572864
+  },
+  "measured_platform": {
+    "ps_ddr_effective_read_GBps": null,
+    "ps_ddr_effective_mixed_GBps": null,
+    "pl_ddr_effective_GBps": null,
+    "fp32_add_latency": null,
+    "fp32_mul_latency": null,
+    "sfu_latency": null,
+    "post_route_Fmax_MHz": null,
+    "physical_ram_blocks": null
+  },
+  "numerical_gate": {
+    "delayed_scale": "candidate_requires_accuracy_acceptance",
+    "head_w4": "optional_new_quantization",
+    "fp32_state": "baseline",
+    "source_dtype_and_head_alias": "unresolved"
+  }
+}

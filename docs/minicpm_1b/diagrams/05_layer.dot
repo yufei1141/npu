@@ -1,0 +1,38 @@
+digraph G {
+graph[rankdir=TB,bgcolor="white",pad="0.25",nodesep="0.4",ranksep="0.55"];
+node[shape=box,style="rounded,filled",fontname="DejaVu Sans",fontsize=11,color="#6b8197",margin="0.15,0.1"];
+edge[fontname="DejaVu Sans",fontsize=9,arrowsize=0.7];
+h[label="Hidden + residual",fillcolor="#e6f5ee"];
+norm[label="Zero-centered RMSNorm",fillcolor="#eaf2ff"];
+lp[label="Linear: W4 QKV/Z + A16 a/b",fillcolor="#eaf2ff"];
+conv[label="Conv4 + SiLU
+L2 q/k + beta/r",fillcolor="#eaf2ff"];
+rpu[label="RPU recurrence
+State old -> new",fillcolor="#f2e9ff"];
+gate[label="RMSNormGated(o,z)",fillcolor="#eaf2ff"];
+fp[label="Full: W4 Q+gate/K/V",fillcolor="#eaf2ff"];
+rope[label="Q/K norm + partial RoPE
+KV append",fillcolor="#eaf2ff"];
+att[label="QK -> online softmax -> PV",fillcolor="#eaf2ff"];
+fg[label="sigmoid(qGate) * attention",fillcolor="#eaf2ff"];
+op[label="W4 output projection
+Residual ADD",fillcolor="#eaf2ff"];
+ffn[label="Norm -> gate/up
+SiLU fence -> MUL fence -> down",fillcolor="#eaf2ff"];
+next[label="Residual ADD -> next layer
+All state/KV/conv ACK -> commit",fillcolor="#e6f5ee"];
+h->norm[label="",color="#306d73",penwidth=1.3];
+norm->lp[label="18 layers",color="#306d73",penwidth=1.3];
+lp->conv[label="",color="#306d73",penwidth=1.3];
+conv->rpu[label="",color="#306d73",penwidth=1.3];
+rpu->gate[label="",color="#306d73",penwidth=1.3];
+gate->op[label="",color="#306d73",penwidth=1.3];
+norm->fp[label="6 layers",color="#306d73",penwidth=1.3];
+fp->rope[label="",color="#306d73",penwidth=1.3];
+rope->att[label="",color="#306d73",penwidth=1.3];
+att->fg[label="",color="#306d73",penwidth=1.3];
+fg->op[label="",color="#306d73",penwidth=1.3];
+h->op[label="Residual",color="#306d73",penwidth=1.3];
+op->ffn[label="",color="#306d73",penwidth=1.3];
+ffn->next[label="",color="#306d73",penwidth=1.3];
+}

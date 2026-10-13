@@ -1,0 +1,40 @@
+digraph G {
+graph[rankdir=LR,bgcolor="white",pad="0.25",nodesep="0.4",ranksep="0.55"];
+node[shape=box,style="rounded,filled",fontname="DejaVu Sans",fontsize=11,color="#6b8197",margin="0.15,0.1"];
+edge[fontname="DejaVu Sans",fontsize=9,arrowsize=0.7];
+cmd[label="JobSequencer / mode / credits",fillcolor="#fff2d9"];
+w[label="W4 packed64 / scale cache",fillcolor="#e6f5ee"];
+x[label="A16 activation broadcast
+Decode1 / prefill4 queries",fillcolor="#e6f5ee"];
+prod[label="Shared x coefficient + INT4 select
+64 FP32 products",fillcolor="#eaf2ff"];
+acc[label="FP32 Add Fabric
+64 row partials, ctx=k mod C",fillcolor="#eaf2ff"];
+snap[label="Partial / group snapshots
+C=16, 2 slots",fillcolor="#e6f5ee"];
+reduce[label="One row/cycle group tree
+8 -> 4 -> 2 -> 1 ADD",fillcolor="#eaf2ff"];
+scale[label="ScaleApply2 / TotalBank2",fillcolor="#eaf2ff"];
+head[label="Native16 head row-major
+32 weights/cycle",fillcolor="#e6f5ee"];
+dot[label="A16 Product32 -> DOT32
+31 ADD reused from fabric",fillcolor="#eaf2ff"];
+rows[label="Multiple row contexts
+Partial -> final sum",fillcolor="#e6f5ee"];
+emit[label="A16 cast / output ACK
+Argmax or vector store",fillcolor="#eaf2ff"];
+cmd->prod[label="W4 mode",style=dashed,color="#986336"];
+w->prod[label="q",color="#306d73",penwidth=1.3];
+x->prod[label="x",color="#306d73",penwidth=1.3];
+prod->acc[label="Products",color="#306d73",penwidth=1.3];
+acc->snap[label="Interleaved partials",color="#306d73",penwidth=1.3];
+snap->reduce[label="16 partials/row",color="#306d73",penwidth=1.3];
+reduce->scale[label="GroupSum",color="#306d73",penwidth=1.3];
+w->scale[label="Aligned scale",color="#306d73",penwidth=1.3];
+scale->emit[label="Linear result",color="#306d73",penwidth=1.3];
+head->dot[label="Continuous 64B/cycle",color="#306d73",penwidth=1.3];
+x->dot[label="x[K..K+31]",color="#306d73",penwidth=1.3];
+cmd->dot[label="A16 DOT mode",style=dashed,color="#986336"];
+dot->rows[label="Row tagged DOTs",color="#306d73",penwidth=1.3];
+rows->emit[label="Head logit",color="#306d73",penwidth=1.3];
+}

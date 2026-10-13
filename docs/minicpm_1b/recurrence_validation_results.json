@@ -1,0 +1,40 @@
+{
+  "seed": 20261013,
+  "cases": [
+    {
+      "dtype": "float64",
+      "lanes": 1,
+      "corner_cases": 5
+    },
+    {
+      "dtype": "float64",
+      "lanes": 4,
+      "corner_cases": 5
+    },
+    {
+      "dtype": "float64",
+      "lanes": 16,
+      "corner_cases": 5
+    },
+    {
+      "dtype": "float32",
+      "lanes": 1,
+      "corner_cases": 5
+    },
+    {
+      "dtype": "float32",
+      "lanes": 4,
+      "corner_cases": 5
+    },
+    {
+      "dtype": "float32",
+      "lanes": 16,
+      "corner_cases": 5
+    }
+  ],
+  "corner_cases": 30,
+  "chunk_cases": 4,
+  "conv_steps": 17,
+  "result": "passed",
+  "scope": "algorithm and stream/chunk invariants; no checkpoint accuracy or RTL claim"
+}

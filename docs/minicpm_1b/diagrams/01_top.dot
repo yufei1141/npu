@@ -1,0 +1,45 @@
+digraph G {
+graph[rankdir=TB,bgcolor="white",pad="0.25",nodesep="0.4",ranksep="0.55"];
+node[shape=box,style="rounded,filled",fontname="DejaVu Sans",fontsize=11,color="#6b8197",margin="0.15,0.1"];
+edge[fontname="DejaVu Sans",fontsize=9,arrowsize=0.7];
+cpu[label="A53 bare metal
+Tokenizer / manifest / descriptors",fillcolor="#fff2d9"];
+ddr[label="PS DDR
+W4 body | native16 head
+KV | state journal | scratch",fillcolor="#e6f5ee"];
+ctrl[label="DCU / events / capability",fillcolor="#fff2d9"];
+dma[label="DMA
+Read / write / reorder / local mover",fillcolor="#eaf2ff"];
+local[label="Banked scratchpads
+Weights / partial / vectors / KV",fillcolor="#e6f5ee"];
+mpu[label="MPU
+W4 output parallel64
+Native A16 DOT32",fillcolor="#eaf2ff"];
+rpu[label="RPU
+16-lane FP32 recurrence",fillcolor="#f2e9ff"];
+cache[label="Head cache 3 x 64 KiB
+Fetch / compute / writeback",fillcolor="#e6f5ee"];
+vpu[label="VPU16 + SFU4
+Norm / conv4 / gates / softplus",fillcolor="#eaf2ff"];
+out[label="A16 logits -> argmax
+Token / commit / fault",fillcolor="#fff2d9"];
+cpu->ddr[label="Load pure-text weights",color="#306d73",penwidth=1.3];
+cpu->ctrl[label="CSR / task queue",style=dashed,color="#986336"];
+ctrl->dma[label="DMA commands",style=dashed,color="#986336"];
+ctrl->mpu[label="Linear / attention",style=dashed,color="#986336"];
+ctrl->rpu[label="State tasks",style=dashed,color="#986336"];
+ctrl->vpu[label="Vector tasks",style=dashed,color="#986336"];
+ddr->dma[label="AXI reads",color="#306d73",penwidth=1.3];
+dma->ddr[label="AXI writes + B",color="#306d73",penwidth=1.3];
+dma->local[label="Fill / store",color="#306d73",penwidth=1.3];
+local->mpu[label="Operands",color="#306d73",penwidth=1.3];
+mpu->local[label="Results",color="#306d73",penwidth=1.3];
+local->vpu[label="Vectors",color="#306d73",penwidth=1.3];
+vpu->local[label="Results",color="#306d73",penwidth=1.3];
+dma->cache[label="Head DMA",color="#306d73",penwidth=1.3];
+cache->rpu[label="FP32 old/new S",color="#306d73",penwidth=1.3];
+vpu->rpu[label="Normalized q/k, beta/r",color="#306d73",penwidth=1.3];
+rpu->vpu[label="o -> gated norm",color="#306d73",penwidth=1.3];
+mpu->out[label="Head result stream",color="#306d73",penwidth=1.3];
+out->ctrl[label="Done / fault",style=dashed,color="#986336"];
+}
