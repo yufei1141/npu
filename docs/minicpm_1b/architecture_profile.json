@@ -16,7 +16,11 @@
     "prefill_query_microbatch": 4,
     "prefill_output_microtile": 16,
     "a16_attention_group_slots_min_example": 3,
-    "head_row_contexts_initial": 4
+    "head_row_contexts_initial": 4,
+    "partial_slots_physically_separate": true,
+    "snapshot_slots": 2,
+    "snapshot_per_slot_bytes": 4096,
+    "feedback_bound": "Lram+Ladd+LwriteCommit+sameCycleGuard"
   },
   "rpu": {
     "fp32_mul_lanes": 16,

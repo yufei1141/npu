@@ -1,3 +1,5 @@
+> 物理端口和Partial→Snapshot捕获细节见 [10](10_fp32_memory_timing.md)，不能仅按本章逻辑容量推定多端口RAM。
+
 # 06 DDR、片上存储与DMA
 
 ## 1. 两级存储不是统一无代价内存

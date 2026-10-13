@@ -25,6 +25,7 @@
 | [07 宏指令与裸金属ABI](07_control_runtime.md) | descriptor格式、队列、CSR、cache维护、导出与恢复 |
 | [08 调度与prefill](08_scheduling.md) | 两种layer流程、依赖、流水与head-major状态复用 |
 | [09 验证与规划](09_validation_plan.md) | 数值/功能/资源门槛、分阶段交付与未决项 |
+| [10 FP32多周期与存储端口](10_fp32_memory_timing.md) | RAM读写反馈、partial转置snapshot、RPU共享算术调度 |
 | [架构图](diagrams/README.md) | 顶层、MPU、RPU、DMA/存储、layer调度 |
 
 ## 运行模型
@@ -34,6 +35,7 @@ cd docs/minicpm_1b
 python models/design_space.py
 python models/validate_recurrence.py
 python models/validate_layout_and_buffers.py
+python models/validate_fp32_feedback.py
 ```
 
 分析模型用Python标准库；递归验证使用NumPy。输出结果属于本次运行，不能当作模型checkpoint精度验收。模型主参数取自保存的config及权重索引；MUL/ADD真实L/II与DDR有效带宽是待测输入。

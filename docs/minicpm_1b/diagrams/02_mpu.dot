@@ -10,8 +10,10 @@ prod[label="Shared x coefficient + INT4 select
 64 FP32 products",fillcolor="#eaf2ff"];
 acc[label="FP32 Add Fabric
 64 row partials, ctx=k mod C",fillcolor="#eaf2ff"];
-snap[label="Partial / group snapshots
-C=16, 2 slots",fillcolor="#e6f5ee"];
+snap[label="Partial banks: 2 isolated slots
+C=16, 64 row banks/slot
+16-cycle transpose capture
+Snapshot registers: 2 x 4 KiB",fillcolor="#e6f5ee"];
 reduce[label="One row/cycle group tree
 8 -> 4 -> 2 -> 1 ADD",fillcolor="#eaf2ff"];
 scale[label="ScaleApply2 / TotalBank2",fillcolor="#eaf2ff"];

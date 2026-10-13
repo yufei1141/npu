@@ -1,3 +1,5 @@
+> 多周期MUL/ADD任务交错、RAM端口和u/o反馈loop见 [10](10_fp32_memory_timing.md)。
+
 # 04 RPU：FP32 Gated DeltaNet递归状态引擎
 
 RPU=Recurrent Processing Unit。独立于MPU，并非用BF16矩阵路径将FP32状态偷偷降精度。首版16FP32 MUL lane+16FP32 ADD lane、norm/reduce共享VPU或局部partial上下文；可扩8/16/32lane。
@@ -24,7 +26,7 @@ localSd不写DDR；每token每head只一次64KiB读、一次64KiB写，不做三
 
 logical S[i,j]，bank=j mod16，row=i*8+j//16；每bank1024 FP32word，16bank合计64KiB。扩展通用公式row=i*ceil(Dv/lanes)+j//lanes；Dk/Dv或lane改变必须重新算slot容量和mask，不复用常数8。每beat固定i与jBatch，16个不同bank同时read/write。q_i、k_i、r广播；delta/o/u按j向量寄存或banked small RAM。
 
-每j累加u/o存在feedback：一个i有8个jBatch×2MUL阶段，同行j下次更新至少16实际发射拍。若Ladd>16，用C个partial上下文或显式stall。不能只认为16lane就自然解决RAW。首版partial按i modC，以固定平衡树归约，C由latency检查产生。
+每j累加u/o存在feedback：一个i有8个jBatch×2MUL阶段，同行j下次更新至少16实际发射拍。若包含RAM/写回保护的完整反馈Dloop>16，用C个partial上下文或显式stall。不能只认为16lane就自然解决RAW。首版partial按i modC，以固定平衡树归约，C由latency检查产生。
 
 pass1两MUL必须保留Sd与对应k_i/tag，不能让state回写读取到下一i的value。pass2MUL/ADD/MUL/ADD异步latency，用StepAligner和per-bank scoreboard。read-after-write同址必须等Sd/Snew writeAck或经过已完成bypass。
 
