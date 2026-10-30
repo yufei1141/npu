@@ -1,0 +1,62 @@
+{
+  "design_name": "sfu",
+  "target_mhz": 800,
+  "constraints": {
+    "lanes": 4,
+    "fma_lanes": 4,
+    "pipeline_stages": 4,
+    "max_levels": 30,
+    "outlier_ratio": 1.5,
+    "max_cells": 50000
+  },
+  "architecture": {
+    "candidate": "D1",
+    "sharing": "single 4-lane FP32 FMA array, shared across all functions via microcode; shared coefficient ROM and integer unit",
+    "io_precision": ["bf16", "fp16"],
+    "internal_precision": "fp32",
+    "optional_area_mode": "fp16 multiply + fp32 accumulate",
+    "primitives": ["exp2", "log2", "rcp", "rsqrt", "sqrt", "sin", "cos", "tanh"],
+    "sincos_dual_output": true,
+    "lane_scaling": "instantiate LANES/4 sfu_slice datapaths; share microcode FSM, microcode ROM, coefficient ROM and integer unit",
+    "rope": "SINCOS + vector ALU (4 FMA per pair); table/cache recommended for long-context angles",
+    "coef_rom": "35 x 32 bit (broadcast, shared, no reserve)",
+    "microcode_rom": "112 x 32 bit (shared, no reserve)",
+    "lut": "4 lanes x 64 entries x 16 bit",
+    "lanes": 4,
+    "micro_ops_per_vector": {
+      "exp2": 10,
+      "log2": 12,
+      "rcp": 9,
+      "rsqrt": 11,
+      "sqrt": 12,
+      "sin_cos": 10,
+      "tanh": 21,
+      "sincos": 17
+    },
+    "effective_throughput_ops_per_cycle": "0.3-0.8",
+    "latency_cycles": "8-16"
+  },
+  "history": [
+    {
+      "stage": "arch_spec",
+      "status": "DONE",
+      "evidence": "edge LLM, 16-bit I/O, FP32 internal, non-concurrent operators"
+    },
+    {
+      "stage": "arch_candidates",
+      "status": "DONE",
+      "evidence": "D1 selected: 4 lanes, one shared FP32 FMA array, microcode FSM"
+    },
+    {
+      "stage": "arch_signoff",
+      "status": "PENDING",
+      "evidence": "budgets provisional; calibrate with yosys_metrics after RTL skeleton; FMA latency assumption 1 cycle"
+    }
+  ],
+  "not_run": [
+    "power estimation (no PDK/activity)",
+    "gate-level STA (no Liberty/OpenSTA)",
+    "DFT",
+    "physical design"
+  ]
+}

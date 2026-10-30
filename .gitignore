@@ -1,0 +1,10 @@
+# simulation build products (iverilog .vvp, Verilator obj dirs and binaries)
+build/
+
+# downloaded checkpoints (~2 GB); scripts point at them, they are not source
+downloads/qwen3-0.6b-awq/
+downloads/qwen3-0.6b-bf16/
+
+# python
+__pycache__/
+*.pyc

@@ -1,62 +1,75 @@
-# NPU：可扩展 LLM 加速器架构设计
+# NPU：LLM 推理加速器
 
-> 新增：[MiniCPM-V-4.7-1B-GPTQ 纯文本 NPU spec 与规划](docs/minicpm_1b/README.md)，目标 ZCU102 裸金属、200MHz；含5种架构对照、递归状态引擎、完整模块合同及验证脚本。
->
-> [查看新模型架构图](docs/minicpm_1b/diagrams/README.md) · [下载新模型 spec ZIP](https://github.com/yufei1141/npu/raw/refs/heads/main/downloads/minicpm_1b_npu_spec.zip)
+平台无关的 NPU 外围 RTL，加上两套既有数据通路核（`tensorcore/` 矩阵核与
+`sfu/` 非线性核）。目标单序列 **prefill + decode**。
 
-基于 SpinalHDL 的 LLM 推理加速器设计，目标支持单序列 **prefill + decode**。
-
-**当前交付是架构 spec、架构图和可执行建模脚本；尚未实现完整 RTL，也未完成 FPGA 综合、板级性能或模型精度验收。**
-
-## 查看与下载
-
-- [最新架构 spec 索引](docs/architecture/README.md)
-- [全部架构图（GitHub 页面）](docs/architecture/diagrams/README.md)
-- [下载架构图与 spec ZIP](https://github.com/yufei1141/npu/raw/refs/heads/main/downloads/npu_v1_architecture.zip)
-
-ZIP 解压后，用浏览器打开 `npu_v1_architecture/diagrams/architecture.html`，即可离线查看全部9张图；SVG 可放大，DOT 源文件可编辑。HTML 在 GitHub 上显示源代码，需下载后打开。
+**当前状态：外围 RTL 已实现并仿真通过，尚未综合、未做时序／板级实测，也未做整层或多 token 的精度验收。**
+验证到“单个投影的硬件 GEMV 与真实网络的 fp32 前向比对”为止，见下文结果表。
 
 ## 结构
 
-- **MPU**：128 tile × 8 产品位置；W4 专用共享激活产品路径，BF16 路径用于 attention 和 lm_head。
-- **VPU**：32 物理 lane，MUL、ADD/compare、分段归约和 SFU。
-- **DMA / MCU**：HBM 与片上权重、KV、激活的搬运、重排、打包和完成跟踪。
-- **DCU / Acu**：宏指令、事件、资源依赖与在线 attention 调度。
-- **存储**：权重、向量、结果、online state，以及两份 KV tile 缓冲；第三份 KV 缓冲是待评估候选。
-
-![顶层架构](docs/architecture/diagrams/01_top.svg)
-
-## 详细合同
-
-| 文档 | 内容 |
+| 层 | 内容 |
 |---|---|
-| [协议与存储](docs/architecture/01_protocol_memory.md) | Bundle、握手、credit、bank 与 slot |
-| [MPU](docs/architecture/02_mpu.md) | W4 产品、DOT8、group、scale、累加 |
-| [VPU / SFU](docs/architecture/03_vpu.md) | 非线性、归约、Norm、RoPE、online attention |
-| [DCU 调度](docs/architecture/04_dcu_schedule.md) | 宏指令、事件、prefill/decode、故障排空 |
-| [架构模型与验证](docs/architecture/05_model_validation.md) | 有限缓冲模型、边界检查、验收门槛 |
-| [DMA](docs/architecture/06_dma.md) | 读写引擎、队列、重排/pack、完成条件 |
+| 外围 | 命令前端、调度、完成／故障、scratchpad、DMA、权重装载、结果回写、VPU、SFU 适配 |
+| 矩阵核 | `tensorcore/`：`gemv_stream` → `gemv_cluster` → `gemv_unit` → `pe`，W4A16 / W16A16 四种 mode |
+| 非线性核 | `sfu/`：`sfu_top` / `sfu_slice`，FP32 逐元素函数 |
 
-## 运行架构检查
+**`tensorcore/` 从未修改**：外围只通过 `rtl/mpu/mpu_engine.v` 提供它需要的接口，
+不重启核、不访问其内部状态机。`sfu/` 原本是占位骨架，其 FP32 数据通路已按
+`sfu/arch/spec.md` 补全，端口与 `sfu_top` 的双 slice 结构保持不变。
 
-只需要 Python 3 标准库：
+模块划分、层级、命令／完成字格式、scratchpad 模型与配置寄存器见
+[rtl/README.md](rtl/README.md) 与 [docs/npu_integration/](docs/npu_integration/README.md)。
 
-```bash
-cd docs/architecture
-python attention_schedule_model.py
-python layout_validate.py
+## 目录
+
+```
+rtl/           外围 RTL（平台无关）
+tensorcore/    既有矩阵核（只读）
+sfu/           既有非线性核
+tb/            iverilog testbench 与 Verilator 的 C++ 与包装
+scripts/       回归、Verilator 构建、离线打包与真实模型参考
+docs/          设计与验收文档
 ```
 
-重新生成架构图需要 Python 3 与 Graphviz：
+## 运行
 
-```bash
-python docs/architecture/diagrams/render.py
+```sh
+scripts/regress.sh                                   # 全部 iverilog testbench
+scripts/verilate.sh npu_top tb/vsim/npu_top_main.cpp # 构建快速模型
+python scripts/real_gemv.py --proj q --layer 0 --cols 32 --token -1
 ```
 
-这些脚本验证抽象调度、依赖和逻辑 bank 映射，不代替 RTL 仿真或实际器件资源/时序验证。
+`scripts/regress.sh` 在 MSYS2 mingw64 存在时自动前置工具链，因此同一脚本
+在 Windows 的 Git Bash 与 POSIX shell 下都能用。协议类 testbench 用 iverilog
+（依赖 Verilog 延迟）；长数值运行时用 Verilator。
 
-## 模型来源与待验证项
+需要 `downloads/qwen3-0.6b-awq`（AWQ 权重）才能跑 `real_gemv.py`；该目录不入库。
 
-目标 checkpoint：[6block/Qwen3-8B-GPTQ](https://huggingface.co/6block/Qwen3-8B-GPTQ)。配置快照见 [docs/reference](docs/reference)，已经核对模型维度与量化声明；实际 compressed-tensors 权重打包、static act-order、scale dtype 和端到端误差尚待验证。
+## 验证结果
 
-设计演进及先前瓶颈分析保留在 [docs/history](docs/history)，冲突时以最新 `docs/architecture` 实现合同为准。工具版本、浮点 IP 的延迟/II、物理 RAM 布局和 HBM 有效带宽尚未冻结。
+| 项目 | 结果 |
+|---|---|
+| `scripts/regress.sh`（iverilog，17 个 testbench） | 17/17 通过 |
+| 全 1 权重 K=1024（`tb_top_gemv`、`t_ones`） | 1024.0，与理想值一致 |
+| 真实 Qwen3-0.6B AWQ 权重，七个投影（layer 0） | cos 0.953–0.999 |
+
+七个投影中，RTL 输出与“用打包后权重做精确 fp32 矩阵乘”的结果打印位一致，
+即残差全部来自 int4 + E8M0 再量化（占参考 RMS 的 5.5%–31%），不来自 RTL。
+参考值是 `scripts/qwen3_ref.py` 的真实前向，不是硬件行为模型。逐项数据与
+本轮修掉的两个缺陷记录在
+[15 验收计划](docs/npu_integration/15_validation_and_sequences.md)。
+
+## 已知边界
+
+- 只验证了单投影单 token 的 GEMV，未做整层、多 token、KV 追加或端到端 logits 比对。
+- 外围 RTL 未综合；无 STA、无 CDC 物理审查、无 ZCU102 板级带宽实测。
+- `sfu/` 的 FP32 能力以 `tb_sfu_slice` 的 ULP 预算为准，未冻结为最终数值合同。
+- Verilator 无法调度 `tensorcore/rtl/fp32_acc.v` 的写法，该文件在 Verilator
+  构建中被 `tb/vsim/fp32_acc_sim.v` 替代（`tensorcore/` 本身不改）。细节见
+  [rtl/README.md](rtl/README.md)。
+
+## 文档
+
+- [NPU 外围集成](docs/npu_integration/README.md)：协议、指令集、各模块合同、验收计划
+- [RTL 说明](rtl/README.md)：模块划分、层级、时钟复位、寄存器与验证矩阵
