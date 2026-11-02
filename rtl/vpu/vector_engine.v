@@ -38,6 +38,43 @@
 //   error response ends the task with MEM_ACCESS without fatal; a response
 //   that does not match the outstanding request raises fatal.
 //=============================================================================
+//=============================================================================
+// 中文说明
+//
+//   VECTOR / REDUCE 任务，跑在 FP32 lane 数据通路上。实现依据
+//   docs/npu_integration/10_vector_engine.md 和 12_format_and_numeric.md 的
+//   数值契约。
+//
+//   实现形态（v0.1 功能基线）：
+//     元素是**一个一个按索引升序处理**的，而不是每拍处理 V_LANES 个。对外
+//     可见的语义完全一样（索引顺序、尾部元素只由 count 决定），代价是吞吐：
+//     每个源元素一次 scratchpad 读、每个目的元素一次带 strobe 的写、目的
+//     通路上只共享一个格式转换器。这是正确性基线，不是向量吞吐的目标形态。
+//
+//   各项语义：
+//     - 16 位存储按需加宽成 FP32；只有**目的地**才收窄，且必经
+//       format_converter（RNE、FTZ、带 flag）；
+//     - SELECT 与带掩码的 REDUCE **先读 mask 字节，再只取真正会用到的那一个
+//       候选值**。这样未被选中的 NaN 候选不会触发数值错误——如果先无条件读
+//       数据再做选择，就会出现"没被选中的 NaN 把整条任务打挂"（doc 10 第 4 节）；
+//     - SUM 从 +0 开始按索引顺序累加、每次加法舍入一次；MAX 用第一个有效
+//       元素初始化。全部被掩码时：SUM 结果为 +0，MAX 报 NUMERIC 且不写任何
+//       数据；
+//     - ROTATE_PAIR 是**符号位翻转**的置换，不是乘 -1：它只动符号位，完全
+//       不经过数值通路，因此不产生舍入、不置任何 flag，也不受 FTZ 影响；
+//     - COMPARE_GT 每个元素写 1 个字节（0/1），不经转换器；
+//     - LAYOUT（opcode 0x23）由本文件内实例化的 tensor_layout 执行。选择位在
+//       任务被接受时锁存、保持到 layout 事件被取走，因此请求、响应和事件都
+//       由同一个锁存位来复用，两条数据通路在同一条任务里不会同时驱动存储器。
+//
+//   地址：base + index*E，E 为 2 或 4 字节。base 和 stride 都是元素对齐的，
+//   所以一个元素绝不会横跨存储字，每次写都是单字 + 字节 strobe。
+//
+//   数值 flag 在整条任务内粘滞，任务开始时清零。invalid 或 overflow 以
+//   NUMERIC 结束任务（已经写出的元素仍然计数）；underflow/inexact 只记录，
+//   任务照常 OK 完成。存储器错误响应以 MEM_ACCESS 结束且不置 fatal；响应与
+//   未完成请求不匹配则置 fatal。
+//=============================================================================
 `timescale 1ns/1ps
 `default_nettype none
 

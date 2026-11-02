@@ -19,6 +19,27 @@
 //   registered read on clk_core with one cycle of latency.  A real memory
 //   macro must match that timing.
 //=============================================================================
+//=============================================================================
+// 中文说明
+//
+//   一组 ping/pong 权重 tile bank。实现依据
+//   docs/npu_integration/07_weight_buffer.md 第 1、4 节。
+//
+//   存储布局（每组 j）：权重低/高各 128 位 × K_STEPS，scale 128 位 ×
+//   ceil(K_STEPS/4)。写口在 io 域、读口在 core 域，两侧各自的所有权状态机
+//   保证两者永不重叠——这是本模块的核心约束，不是性能优化。
+//
+//   所有权状态机：
+//     io 侧  ：FREE -> FILLING -> COMMITTING -> CORE_OWNED -> FREE
+//     core 侧：EMPTY -> READY -> READING -> RELEASING -> EMPTY
+//   描述符通过四相请求/应答邮箱从 io 交给 core，释放则用镜像方向（core ->
+//   io）。新的填充只在 **EMPTY** 状态才被应答，因此替换 tile 不会越过一个
+//   还在释放的 bank——否则会出现 loader 已经往 bank 里写、而 core 仍在读旧
+//   tile 的撕裂。
+//
+//   RAM 建模：行为数组，clk_io 上同步写、clk_core 上寄存器读、延迟一拍。真实
+//   存储宏必须提供同样时序，否则两侧状态机的"不重叠"论证就失效了。
+//=============================================================================
 `timescale 1ns/1ps
 `default_nettype none
 
@@ -72,9 +93,9 @@ module weight_bank #(
     // ------------------------------------------------------------------
     // storage
     // ------------------------------------------------------------------
-    reg [127:0] w_lo [0:GROUPS*K_STEPS-1];
-    reg [127:0] w_hi [0:GROUPS*K_STEPS-1];
-    reg [127:0] sc   [0:GROUPS*SC-1];
+    (* ram_style = "block" *) reg [127:0] w_lo [0:GROUPS*K_STEPS-1];
+    (* ram_style = "block" *) reg [127:0] w_hi [0:GROUPS*K_STEPS-1];
+    (* ram_style = "block" *) reg [127:0] sc   [0:GROUPS*SC-1];
 
     wire [AW-1:0] wr_word = wr_addr;
 
@@ -92,32 +113,49 @@ module weight_bank #(
     reg                      rd_valid_r;
     reg [GROUPS*256-1:0]     wlo_r;
     reg [GROUPS*128-1:0]     scr_r;
+    reg [GROUPS-1:0]         rd_en_r;
+    reg [GROUPS*256-1:0]     wlo_g;
+    reg [GROUPS*128-1:0]     scr_g;
     integer g;
+
+    // The arrays are read every core cycle into a plain register bank: no
+    // reset on the read side and no conditional wrapped around the read
+    // itself, which is the shape that maps to block RAM.  With the old
+    // "if (rd_en) read else zero" form inside the reset block each bank
+    // expanded to ~11k distributed RAM primitives, which does not fit.
+    //
+    // The per-group enable is registered alongside the data and applied at
+    // the output, so a group that was not selected still presents zeros one
+    // cycle later -- exactly the cycle the old zeroing landed in.
+    always @(posedge clk_core) begin
+        for (g = 0; g < GROUPS; g = g + 1) begin
+            wlo_r[g*256 +: 128]     <= w_lo[g*K_STEPS + rd_addr];
+            wlo_r[g*256+128 +: 128] <= w_hi[g*K_STEPS + rd_addr];
+            scr_r[g*128 +: 128]     <= sc[g*SC + (rd_addr >> 2)];
+        end
+    end
 
     always @(posedge clk_core or negedge rst_core_n) begin
         if (!rst_core_n) begin
             rd_valid_r <= 1'b0;
-            wlo_r      <= {(GROUPS*256){1'b0}};
-            scr_r      <= {(GROUPS*128){1'b0}};
+            rd_en_r    <= {GROUPS{1'b0}};
         end else begin
             rd_valid_r <= |rd_en;
-            for (g = 0; g < GROUPS; g = g + 1) begin
-                if (rd_en[g]) begin
-                    wlo_r[g*256 +: 128]   <= w_lo[g*K_STEPS + rd_addr];
-                    wlo_r[g*256+128 +: 128] <= w_hi[g*K_STEPS + rd_addr];
-                    scr_r[g*128 +: 128]   <= sc[g*SC + (rd_addr >> 2)];
-                end else begin
-                    wlo_r[g*256 +: 128]     <= 128'd0;
-                    wlo_r[g*256+128 +: 128] <= 128'd0;
-                    scr_r[g*128 +: 128]     <= 128'd0;
-                end
-            end
+            rd_en_r    <= rd_en;
+        end
+    end
+
+    always @* begin
+        for (g = 0; g < GROUPS; g = g + 1) begin
+            wlo_g[g*256 +: 128]     = rd_en_r[g] ? wlo_r[g*256 +: 128] : 128'd0;
+            wlo_g[g*256+128 +: 128] = rd_en_r[g] ? wlo_r[g*256+128 +: 128] : 128'd0;
+            scr_g[g*128 +: 128]     = rd_en_r[g] ? scr_r[g*128 +: 128] : 128'd0;
         end
     end
 
     assign rd_valid     = rd_valid_r;
-    assign weight_lo_hi = wlo_r;
-    assign scale_word   = scr_r;
+    assign weight_lo_hi = wlo_g;
+    assign scale_word   = scr_g;
 
     // ------------------------------------------------------------------
     // CDC mailboxes

@@ -27,6 +27,36 @@
 //   access_decode and again by the memory subsystem; this module checks shape,
 //   alignment, limits and 32-bit address overflow.
 //=============================================================================
+//=============================================================================
+// 中文说明
+//
+//   LAYOUT 任务的实现：TRANSPOSE2D 与 PACK_W16。实现依据
+//   docs/npu_integration/16_tensor_layout_and_kv.md。
+//
+//   它与 vector_engine 共用 memory client 1 和 VPU 的完成源：vector_engine 在
+//   每条任务里选一条数据通路，请求、响应和事件都由锁存的选择位来复用，因此
+//   两条通路在同一条任务里不会同时驱动存储器。
+//
+//   共同性质：两个 subop 都只**搬原始元素**——不做算术、不做格式转换，源格式
+//   与目的格式必须完全一致。每个元素是一次对齐读（当该元素落在逻辑源区间内）
+//   加一次带字节 strobe 的字写，因此元素之外的字节永远不会被碰到。即使多个
+//   元素共处一个字也**不合并写**，这是 doc 16 第 5 节规定的最小实现。
+//
+//   TRANSPOSE2D：src = src_base + r*src_stride + c*E
+//                dst = dst_base + c*dst_stride + r*E        （rows x cols）
+//
+//   PACK_W16：j=0..g-1、s=0..S-1、p=0..3、i=0..3、k=4s+i、n=4j+p
+//                src = src_base + k*src_stride + 2*n
+//                dst = dst_base + 32*(j*S+s) + 8*p + 2*i
+//             当 k>=K 或 n>=N 时是**填充**：写入一个 +0 元素，不读源，也不
+//             计入完成的元素数。这个"写零而不读"的约定保证了 A/B 帧的尾部
+//             是确定的零，而不是上一轮残留。
+//
+//   完成判据：completed_units = rows*cols（TRANSPOSE2D）或 K*N（PACK_W16）；
+//   只有每个元素和每个填充字都被写确认，任务才算成功完成。缓冲区容量由
+//   access_decode 静态检查一次、memory_subsystem 再检查一次；本模块负责检查
+//   形状、对齐、上限以及 32 位地址溢出。
+//=============================================================================
 `timescale 1ns/1ps
 `default_nettype none
 

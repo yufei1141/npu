@@ -68,6 +68,8 @@ DEP_EN 下若槽 FREE 或 job 不匹配，返回 DEP_MISSING，不无限等待�
 
 MPU 权重 tile0 必须匹配 job/mode/g/S；完整 tile0 未到可以等待，但若所需 LOAD 被软件排在此 MATMUL 之后，队头顺序会死锁，属于程序错误，验证器应拒绝此序列。后续 tile 的 LOAD 可以排在 MATMUL 之后，因为 MATMUL 发射后调度已回 IDLE。
 
+src1_buf≠0 的 MATMUL（B 为 scratchpad 激活帧，见 08 的 B 帧通路）不查权重：该 job 永远不会有 LOAD_W，tile0 查询只能答“未匹配”，若仍用它把门就会停在 RESERVE 不动。这类 job 的 B 帧 buffer 与 A 一样按普通读锁申请（读集合为 A buffer 加 B 帧 buffer），tile0 门控只对 src1_buf=0 生效。
+
 ## 4. FENCE、释放与错误
 
 FENCE 到达时不再发射后面的任务，等待此前 compute_busy=dma_busy=0、memory outstanding=0，然后创建成功事件。其自身事件槽在 RESERVE 时预约，不能将自身也计入等待集合。

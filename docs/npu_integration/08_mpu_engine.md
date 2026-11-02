@@ -8,12 +8,33 @@
 mpu_engine
   task_adapter：锁存 job、预留结果槽、启动和完成计数
   activation_packer：scratchpad → A beat
+  b_frame_reader：scratchpad → B beat（src1_buf≠0，B 为激活）
+  mem_arb2：A packer 与 B frame reader 分时共用客户端 MPU_A
   B tile controller：依序选择 weight_reader 的 tile
   gemv_stream：现有 A/B FIFO + sequencer + cluster
   result_capture：脉冲结果 → 可背压 tile 流（见 09）
 ```
 
 MPU 不直接发外存请求。每个 job 的 M 只包含 1..4 行，N 分 tiles 个相同最大宽度，K 为完整归约维度。
+
+### 1.1 双源 B
+
+B 口有两个来源，由锁存的 `src1_buf` 选择：
+
+| src1_buf | 来源 | 时序 |
+|---|---|---|
+| 0 | weight_reader（io 域，`w_b_*`） | 每 tile 选 bank，收到 tile_done 才换 tile |
+| ≠0 | b_frame_reader（scratchpad） | 不选 bank、不等 tile_done，tiles*k_steps 个 beat 连续流 |
+
+两者在 `gemv_stream.b_din` 前的 mux 是纯组合的，`w_b_ready`/`br_ready` 由同
+一个 `b_fire`（state=M_FEED、本 tile 还有 beat 余量、core 可收）派生，因此
+权重通路的行为与加入本通路前逐拍一致。b_frame_reader 每拍读 n_grp 个 32 B
+帧字（`B_base + j*B_stride + 32*s`），w16 无 scale，beat 高 256 bit 恒 0。
+tile t 用的是帧里第 `t*n_grp .. t*n_grp+n_grp-1` 组，即地址里的组号按
+`t*n_grp + j` 计算，所以一次 PACK_W16 生成的 `tiles*n_grp` 组整帧被顺序消费。
+
+激活帧 job 在 M_RESERVE 之后直接进 M_START（不做 M_BSEL），在 M_FEED 里
+`b_tile_cnt` 满 k_steps 就立即释放本 tile，不等待 `w_tile_done`。
 
 ## 2. mpu_engine 外层端口（core 域）
 

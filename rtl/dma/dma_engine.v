@@ -38,6 +38,44 @@
 //   command to weight_loader and streams the frame straight to its data port.
 //   Weight bank release is owned by weight_reader, never by this module.
 //=============================================================================
+//=============================================================================
+// 中文说明
+//
+//   普通 LOAD/STORE 通道：在片外存储（DDR）和片内 scratchpad 之间搬数据。
+//   实现依据 docs/npu_integration/06_dma_engine.md。
+//
+//   并发度：一条 DMA 命令在途、一个外部行事务在途。这是刻意的保守设计——
+//   它让"每个客户端一个未完成请求"的模型在整条链路上成立，正确性容易论证，
+//   但也意味着吞吐是基线而非目标（见文末的吞吐说明）。
+//
+//   两个时钟域的分工：
+//     core 域：task 桥、scratchpad 数据桥、行写确认；
+//     io   域：命令状态机（IDLE / W_ALLOC / ROW_REQ / ROW_DATA / ROW_WAIT /
+//              ROW_ADV / FINISH）、外部帧处理。
+//
+//   跨域通路（全部有明确的握手或 FIFO，没有裸信号跨域）：
+//     cmd 邮箱      core -> io   512 位，四相握手
+//     done 邮箱     io   -> core 128 位：units + status
+//     row ack 邮箱  core -> io   32 位：{status[15:0], row_index[15:0]}，
+//                                只用于普通 LOAD
+//     load FIFO     io   -> core 深度 8，146 位一个 beat
+//     store FIFO    core -> io   深度 8，146 位一个 beat
+//   两个 FIFO 的 beat 格式一致：{error, row_last, keep[15:0], data[127:0]}。
+//
+//   错误处理的核心约定：**每一行都必须以恰好一个带 row_last 的 beat 结束**，
+//   出错的行也一样。一旦某行失败，io 侧对剩余每一行只发一个"零长度的错误
+//   beat"，而不再发起新的外部事务——这样 core 侧的数据桥就不需要任何 abort
+//   路径，状态机只有一条主线。若帧边界不可信（tag 不匹配）则直接置 fatal，
+//   剩余行仍然被排空以免 core 挂死，但不再发出外部请求。
+//
+//   吞吐说明：core 桥对每个 scratchpad 字都是"发请求、等响应"的串行节奏，
+//   io 侧只保持一行在途，对应 v0.1 的"每客户端/每行一个未完成"模型。这是
+//   正确性基线，不是 18 GB/s 的目标形态。
+//
+//   LOAD_W（subop 1）没有 scratchpad 数据通路：io 侧把命令交给 weight_loader，
+//   帧数据直接流到它的数据口。权重 bank 的释放权归 weight_reader，绝不归本
+//   模块——否则会出现两个模块同时管理同一组 bank 的引用计数。
+//=============================================================================
 `timescale 1ns/1ps
 `default_nettype none
 

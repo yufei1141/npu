@@ -77,12 +77,21 @@ bank 由 loader 在空闲 ping/pong 中分配，不由软件猜测 bank。LOAD_W
 | P3 | N_valid，job 总有效列，`4*g*(tiles-1)<N_valid<=4*g*tiles` |
 | P4 | A_base，src0_buf 内字节偏移 |
 | P5 | A_row_stride，字节；至少 2*K_valid，首行元素对齐即可 |
-| P6 | A_tile_stride，首版必须 0，N tile 间重用相同 A |
+| P6 | A_tile_stride，首版必须 0，N tile 间重用相同 A；src1_buf≠0 时改为 B_base |
 | P7 | D_base，dst_buf 内字节偏移 |
 | P8 | D_row_stride，至少 N_valid*dst_element_bytes |
-| P9..P11 | 0 |
+| P9 | src1_buf≠0 时 B_group_stride，字节，否则 0 |
+| P10..P11 | 0 |
 
-src1_buf=0；权重以 `(consumer_job_id=job_id,tile_index)` 从 weight_reader 获取。A / D 不允许同 buffer。mode=00 W4FP16，01 W16FP16，10 W4BF16，11 W16BF16；必须与 formats 相符，accumulator=FP32，dst 为 FP16/BF16/FP32。
+src1_buf=0（默认）时 B 是权重：以 `(consumer_job_id=job_id,tile_index)` 从 weight_reader 获取。
+src1_buf≠0 时 B 是**激活**，直接从该 scratchpad buffer 读 w16 B 帧（LAYOUT.PACK_W16 的输出），
+不经权重 bank：group j、step s 位于 `B_base + j*P9 + 32*s`，每个 beat 每 group 读一个 32 B 字。
+此时必须 mode=01/11（w16），P6/P9 必须 32 B 对齐，P9 ≥ 32*k_steps，P10/P11=0，
+且该 buffer 不得与 src0_buf/dst_buf 相同；不选权重 bank、不等待 tile_done。tile t 取帧里第
+`t*g .. t*g+g-1` 组（即从 `B_base + t*g*P9` 开始），一次 PACK_W16 生成 `tiles*g` 组的整帧，
+各 tile 是同一 B 流里连续的 k_steps 个 beat。这条通路供 QKᵀ（B=K）、P·V（B=V）以及后续
+KV 复用使用。
+A / D 不允许同 buffer。mode=00 W4FP16，01 W16FP16，10 W4BF16，11 W16BF16；必须与 formats 相符，accumulator=FP32，dst 为 FP16/BF16/FP32。
 
 每 job 不跨 M tile。更大 M 由软件发多个 job；每个 job 的配置保持到最后写确认。完整 K 放不下时拒绝，不将 K 分块伪装成不相关 job 后丢失部分和。
 

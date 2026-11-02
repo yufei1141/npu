@@ -63,15 +63,21 @@ SRC="$SRC $SIM_SHIM"
 # width/timescale warnings but elaborates correctly.  64-bit is needed by the
 # address arithmetic in the memory path.
 "$PERL" "$(command -v verilator)" \
-    --cc --exe --build -O3 \
+    --cc --exe -O3 \
     -Wno-fatal -Wno-WIDTH -Wno-TIMESCALEMOD -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE \
     -Wno-LATCH -Wno-MULTIDRIVEN -Wno-BLKLOOPINIT \
     -Irtl/common -Isfu/sfu -Itensorcore/rtl \
     --top-module "$TOP" \
     --Mdir "$OBJ" \
-    -CFLAGS "-O2 -std=c++11" \
+    -CFLAGS "-O3 -std=c++11" \
     -LDFLAGS "-static" \
     $SRC \
     "$HARNESS"
+
+# --build would run make itself, and verilated.mk pins OPT_FAST to -Os, which
+# lands after -CFLAGS on the compile line and wins.  Drive make here instead so
+# the simulation is built for speed, not for size: on the long numeric runs
+# this is the difference between minutes and hours.
+make -C "$OBJ" -f "V$TOP.mk" -j"$JOBS" OPT_FAST=-O3 OPT_SLOW=-O3
 
 echo "built: $OBJ/V$TOP"

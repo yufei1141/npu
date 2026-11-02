@@ -14,6 +14,27 @@
 //   - No partial checks are claimed: buffer capacity and runtime effects are
 //     checked by the scheduler and engines.
 //=============================================================================
+//=============================================================================
+// 中文说明
+//
+//   命令前端：512 位命令 FIFO + 静态译码与检查。主机写进来的每条命令在这里
+//   排队，并做"不依赖运行时状态"的即时检查；真正涉及缓冲区容量和引擎占用
+//   的判断留给调度器和各引擎（本模块不做、也不假装做这些检查）。实现依据
+//   docs/npu_integration/03_command_frontend.md。
+//
+//   行为要点：
+//     - accept_enable 只控制"入队"，不控制"出队"。RUN 拉低之后队列里已经
+//       被接受的命令仍然可以继续排空，不会因为关闭入口而被卡死；
+//     - 每条入队命令都做静态检查，但**坏命令依然按序入队**，只是附带
+//       issue_error 一起送到调度器。这样命令流的顺序语义不会被"丢弃"破坏，
+//       调度器负责把它变成一次带错误码的完成记录；
+//     - 重复 job_id 检测：如果新命令的 job_id 与本队列中更早的命令（含本拍
+//       正在弹出的那条）或调度器当前持有的命令相同，就置 issue_identity_error。
+//       命令照样入队，由调度器转成"不占用事件槽"的拒绝——因为槽位本身已经
+//       被前一个同名 job 占着，再分配会破坏后续 WAIT 的语义；
+//     - 队列深度由 CMD_FIFO_DEPTH 决定（默认 8），满时通过 cmd_ready 反压
+//       主机，不会覆盖未消费的命令。
+//=============================================================================
 `timescale 1ns/1ps
 `default_nettype none
 
@@ -64,6 +85,7 @@ module command_frontend #(
         reg [31:0] p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11;
         reg [31:0] m_len, g, mode, tiles, ksteps, kvalid, nvalid, kstep;
         reg [31:0] s_steps, w_bus;
+        reg [31:0] bact;
         reg [63:0] tmp64;
         reg [5:0]  vsub;
         reg [1:0]  bcast;
@@ -193,12 +215,18 @@ module command_frontend #(
                     kvalid = p2;
                     nvalid = p3;
                     kstep  = mode[0] ? 32'd4 : 32'd16;
+                    // src1_buf != 0: the B operand is an activation frame in
+                    // a scratchpad buffer (P6 base, P9 group stride) instead
+                    // of an INT4/FP16 weight tile in a weight bank.
+                    bact   = {24'd0, c[79:72]};
 
                     if (sub != 8'd0)
                         check_static = `NPU_ST_BAD_FIELD;
-                    else if (c[79:72] != 0)
-                        check_static = `NPU_ST_BAD_FIELD;
+                    else if (bact != 0 && mode[0] == 1'b0)
+                        check_static = `NPU_ST_UNSUPPORTED;
                     else if (c[71:64] == c[87:80])
+                        check_static = `NPU_ST_BAD_FIELD;
+                    else if (bact != 0 && c[79:72] == c[87:80])
                         check_static = `NPU_ST_BAD_FIELD;
                     else if (c[103:96] >= EVENT_SLOTS)
                         check_static = `NPU_ST_RANGE;
@@ -217,7 +245,15 @@ module command_frontend #(
                     else if (!((4*g*(tiles-1)) < nvalid &&
                                (nvalid <= 4*g*tiles)))
                         check_static = `NPU_ST_BAD_FIELD;
-                    else if (p6 != 0 || (p9|p10|p11) != 0)
+                    else if ((bact == 0) &&
+                             (p6 != 0 || (p9|p10|p11) != 0))
+                        check_static = `NPU_ST_BAD_FIELD;
+                    else if ((bact != 0) && ((p10|p11) != 0 || p6[4:0] != 0))
+                        check_static = `NPU_ST_BAD_FIELD;
+                    else if ((bact != 0) && (p9[4:0] != 0))
+                        check_static = `NPU_ST_ALIGN;
+                    // a B group must hold its whole k-step sequence
+                    else if ((bact != 0) && p9 < (32*ksteps))
                         check_static = `NPU_ST_BAD_FIELD;
                     else if (p5 < (2*kvalid) || p8 < (nvalid *
                              `NPU_ELEM_BYTES(f_dst)))
@@ -273,7 +309,9 @@ module command_frontend #(
                                 check_static = `NPU_ST_BAD_FIELD;
                             else if (f_src1 > `NPU_FMT_FP32)
                                 check_static = `NPU_ST_BAD_FIELD;
-                            else if (bcast == 2'b10 && p0[0] != 0)
+                            // only the pair broadcast needs an even count;
+                            // sub[7] is the scalar broadcast, sub[6] the pair
+                            else if (bcast == 2'b01 && p0[0] != 0)
                                 check_static = `NPU_ST_BAD_FIELD;
                             else if (p4 != 0 || p5 != 0 || p6 != 0)
                                 check_static = `NPU_ST_BAD_FIELD;

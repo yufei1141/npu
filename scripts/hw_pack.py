@@ -31,17 +31,19 @@ E8M0_ONE = 127
 def block_scale(block):
     """shared E8M0 exponent for one (K4 x 4) block; codes land in [-8, 7]
 
-    `max/7` is the smallest step that never clips; one or two coarser steps
-    can still win on squared error when a block has one large and many small
-    values, so the best of three candidates is taken.  Saturation is allowed
-    at -8/7, which keeps the search cheap and bounded.
+    `max/7` is the smallest step that never clips, but both coarser steps
+    (one large value among small ones) and one *finer* step (a block with a
+    single outlier, where clipping it costs less than the step it would
+    otherwise force on the other fifteen) win on squared error in practice,
+    so the best of four candidates is taken.  Saturation is allowed at
+    -8/7, which keeps the search cheap and bounded.
     """
     m = np.max(np.abs(block))
     if m == 0:
         return E8M0_ONE
     e0 = int(np.ceil(np.log2(m / 7.0)))
     best, best_err = None, None
-    for e in (e0, e0 + 1, e0 + 2):
+    for e in (e0 - 1, e0, e0 + 1, e0 + 2):
         step = np.ldexp(1.0, max(-127, min(127, e)))
         q = np.clip(np.rint(block / step), -8, 7)
         err = float(np.sum((q * step - block) ** 2))
@@ -111,6 +113,58 @@ def pack_tile(W, k_step=16, n_grp=8):
         sbytes += gs + bytes(pad)
 
     return bytes(wbytes), bytes(sbytes), recon[:K, :N]
+
+
+def pack_tile_fast(W, k_step=16, n_grp=8):
+    """pack_tile without the Python loop over blocks: same bytes, ~500x faster.
+
+    pack_tile calls pack_block once per (K4 x 4) block, which is fine for the
+    seven matrices of a layer (a few hundred tiles) and hopeless for the
+    lm_head (151936 x 1024 = 4748 tiles, ~1 s each).  This evaluates the same
+    four-exponent search for every block of the tile at once.  The blocks are
+    laid out as [step, PE, K row, group, column], which is Wp's row order.
+    """
+    K, N = W.shape
+    S = (K + k_step - 1) // k_step
+    n_col = 4 * n_grp
+    if N > n_col:
+        raise ValueError("tile holds %d columns, matrix has %d" % (n_col, N))
+
+    Wp = np.zeros((S * k_step, n_col), dtype=np.float64)
+    Wp[:K, :N] = W
+    B = Wp.reshape(S, k_step // 4, 4, n_grp, 4)
+    m = np.max(np.abs(B), axis=(2, 4))                  # [S, PE, group]
+    nz = m > 0
+    with np.errstate(divide="ignore"):
+        e0 = np.ceil(np.log2(np.where(nz, m, 1.0) / 7.0))
+    best_e = np.zeros(m.shape, np.int64)
+    best_err = np.full(m.shape, np.inf)
+    for d in (-1, 0, 1, 2):
+        e = np.clip(e0 + d, -127, 127)
+        step = np.ldexp(np.ones_like(e, np.float64), e.astype(np.int32))[:, :, None, :, None]
+        q = np.clip(np.rint(B / step), -8, 7)
+        err = np.sum((q * step - B) ** 2, axis=(2, 4))
+        take = err < best_err
+        best_err = np.where(take, err, best_err)
+        best_e = np.where(take, e, best_e)
+    best_e = np.where(nz, best_e, 0)        # an all-zero block is 2^0 = 127
+    step = np.ldexp(np.ones_like(best_e, np.float64), best_e.astype(np.int32))[:, :, None, :, None]
+    q = np.clip(np.rint(B / step), -8, 7)               # [-8, 7]
+    codes = q.astype(np.int64) & 0xF
+    # the word {w0,w1,w2,w3} goes out little-endian, so the low byte carries
+    # columns 2 and 3 -- same trick pack_block's comment warns about
+    wb = np.stack([(codes[..., 2] << 4) | codes[..., 3],
+                   (codes[..., 0] << 4) | codes[..., 1]], axis=-1)
+    wbytes = wb.astype(np.uint8).transpose(3, 0, 1, 2, 4).tobytes()
+    e8 = (best_e + E8M0_ONE).astype(np.uint8)           # [S, PE, group]
+    sbytes = e8.transpose(2, 0, 1).reshape(n_grp, -1)   # [group][step,PE]
+    pad = (-sbytes.shape[1]) % 16                       # 16 B per group
+    if pad:
+        sbytes = np.concatenate([sbytes, np.zeros((n_grp, pad), np.uint8)],
+                                axis=1)
+    sbytes = sbytes.tobytes()
+    recon = (q * step).reshape(S * k_step, n_col)[:K, :N]
+    return wbytes, sbytes, recon
 
 
 def pack_matrix(W, k_step=16, n_grp=8, tiles=None):

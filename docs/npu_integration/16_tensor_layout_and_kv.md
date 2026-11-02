@@ -10,12 +10,22 @@ Q/K/V 投影结果在 core scratchpad，当前权重 bank 只有 io 写入口。
 
 ```text
 外存 K/V → LOAD → 普通 scratchpad
-        → [TRANSPOSE2D] → PACK_W16 → 普通 scratchpad 的 B 帧
-        → STORE → 外存临时 B 帧 → LOAD_W → io 写双时钟权重 bank
-        → weight_reader → MPU B 口
+        → TRANSPOSE2D → PACK_W16 → 普通 scratchpad 的 B 帧
+        → MATMUL(src1_buf = 该 buffer) → MPU 的 B 激活通路
 ```
 
-这会额外读写外存，不能把它的性能当成纯权重流式 GEMV。未来可增加 core-local 权重 bank 写入口／双源 B adapter，但要另定义 bank 所有权、仲裁和提交；本版没有这个旁路。模型离线 W4 权重继续由离线打包工具形成原生帧，不经过本模块在线量化。
+即 B 帧不再回外存、不经权重 bank：MPU 内的 b_frame_reader 直接按
+`B_base + j*B_stride + 32*s` 从 scratchpad 读帧，与 A packer 分时共用
+memory 客户端 MPU_A（mem_arb2，一次一个在途请求，grant 保持到响应取回，
+两侧轮转）。选择权重 bank 与等待 tile_done 的步骤全部省略：多 tile job 的
+tile t 取帧里第 t*g .. t*g+g-1 组，即该 tile 的帧从 `B_base + t*g*P9` 开
+始，整个 `tiles*g` 组的帧由一次 PACK_W16 顺序生成，各 tile 只是同一 B 流里
+连续的 k_steps 个 beat。权重 job（src1_buf=0）的通路和时序完全不变。
+
+因此 QKᵀ（B=K）、P·V（B=V）和后续 KV 复用走同一条 B 口，权重与激活只是
+两个来源。原先把 B 帧写回外存再 LOAD_W 的路径仍可用（用于需要持久化的
+情形），但不再是 attention 的必要步骤。模型离线 W4 权重继续由离线打包
+工具形成原生帧，不经过本模块在线量化。
 
 ## 2. tensor_layout 模块端口和资源
 
@@ -82,6 +92,8 @@ weight_group[64*p+16*i +:16] = B[k,n]
 ```
 
 k≥K_valid 或 n≥N_valid 时直接生成+0，不发源请求。该排列对应 gemv_unit 的每PE一输出列／每PE四个K权重，不是把普通4×4行主序片段直接拷贝过去。每32B组拆两个128bit lo/hi，与[07](07_weight_buffer.md)相同；STORE/LOAD_W 的长度必须正好32*g*S。
+
+一次 PACK_W16 至多 8 组（32 列），而一个 MATMUL 的 B 可以跨 `tiles*n_grp` 组。多命令生成同一条 B 流时，第 m 块的源列偏移取 `4*g*m*2` 字节、目的偏移取 `32*g*S*m` 字节，各块首尾相接；这样 MATMUL 只需 P6=首块基址、P9=32*S 的组 stride，tile t 仍取第 `t*n_grp .. t*n_grp+n_grp-1` 组（例如 P·V 的 hd=128 列 = 4 块 × 8 组，tiles=4、n_grp=8）。
 
 ## 5. 状态机与memory交互
 

@@ -22,6 +22,36 @@
 //   (scalar) or ceil(count/2) elements (pair).  INPLACE removes src0 from the
 //   read set: the shared buffer is taken once as an exclusive write.
 //=============================================================================
+//=============================================================================
+// 中文说明
+//
+//   对已经锁存的命令做纯组合译码，把 512 位命令翻译成调度器关心的视图：
+//     - 引擎类别（DMA / MPU / VPU / SFU / FENCE / RELEASE）；
+//     - scratchpad 的读集合与写集合，以及每段访问的**字节范围**；
+//     - 调度器需要的头部字段（job、依赖、事件槽、flags）；
+//     - buffer 配置检查：是否启用、容量是否够、以及同一条命令内部的读区间
+//       与写区间是否在物理上重叠（aliasing）。
+//
+//   职责边界：这是调度器 CHECK 状态里"资源那一半"。指令本身的静态检查
+//   （opcode、字段、对齐）属于 command_frontend，以 issue_error 的形式传进来；
+//   本模块只看 buffer 资源，不重复做指令合法性判断。
+//
+//   为什么有 *_flat 端口：Verilog-2001 不支持数组端口，所以 buffer 配置被摊平
+//   成向量——bank[b] = buf_bank_flat[8*b +: 8]，base/size 同理。这是语言限制，
+//   不是设计意图。
+//
+//   地址换算：命令里的字节偏移是**相对 buffer 的**，物理字节范围是
+//   base_word[b]*B + offset，B 是一个存储字的字节数。
+//
+//   字节范围（extent）的定义是"实际被触及的第一个字节到最后一个字节"：
+//     - 广播（broadcast）时 src1 的范围缩小——scalar 只有 1 个元素，pair 是
+//       ceil(count/2) 个元素；
+//     - INPLACE 会把 src0 从读集合里去掉：共享的那个 buffer 只以一次独占写
+//       的身份参与冲突检查，否则它自己就会和自己冲突。
+//
+//   所以这里的判据是"保守但正确"：范围取首尾跨度，中间的缝隙也算占用，宁可
+//   少并发也不出错。
+//=============================================================================
 `timescale 1ns/1ps
 `default_nettype none
 
@@ -94,6 +124,7 @@ module access_decode #(
     wire [31:0] p6  = cmd[351:320];
     wire [31:0] p7  = cmd[383:352];
     wire [31:0] p8  = cmd[415:384];
+    wire [31:0] p9  = cmd[447:416];
 
     wire [31:0] es0 = `NPU_ELEM_BYTES(f_fs0);
     wire [31:0] es1 = `NPU_ELEM_BYTES(f_fs1);
@@ -219,6 +250,20 @@ module access_decode #(
             t64 = t64 + ({32'd0, kvalid} << 1);
             if (t64 > 64'h0000_0000_FFFF_FFFF) ovf = 1'b1;
             add_read(f_src0b, p4, t64[32:0]);
+
+            // B: when src1_buf is set the B operand is a w16 activation
+            // frame in a scratchpad buffer.  Tile t owns groups
+            // t*n_grp..t*n_grp+n_grp-1 of one flat frame, so the job spans
+            // tiles*n_grp groups of stride P9, 32 B per k-step.
+            if (cmd[79:72] != 8'd0) begin
+                g8  = {24'd0, p0[15:8]};
+                s4  = {16'd0, p1[31:16]};
+                t64 = {32'd0, g8} * {16'd0, p1[15:0]};      // tiles * n_grp
+                t64 = (t64 - 64'd1) * {32'd0, p9};
+                t64 = t64 + ({32'd0, s4} << 5);
+                if (t64 > 64'h0000_0000_FFFF_FFFF) ovf = 1'b1;
+                add_read(cmd[79:72], p6, t64[32:0]);
+            end
 
             // D: m_len rows of dst elements, row stride P8
             t64 = {32'd0, m_len - 32'd1} * {32'd0, p8};

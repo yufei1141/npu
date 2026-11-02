@@ -51,6 +51,48 @@
 //   SINCOS) and all three storage formats are enabled.  Clearing a bit still
 //   rejects the corresponding task with UNSUPPORTED.
 //=============================================================================
+//=============================================================================
+// 中文说明
+//
+//   平台无关的 NPU 外设顶层。实现依据 docs/npu_integration/14_npu_top.md。
+//
+//   时钟域划分：
+//     core 域：command_frontend -> task_scheduler -> {dma, mpu, vpu, sfu}、
+//              memory_subsystem、result_writeback、weight_reader、
+//              completion_manager、配置寄存器、顶层状态机；
+//     io   域：dma_engine 的外部侧、weight_loader、weight_bank 的写侧。
+//   clk_io 与 clk_core 相互独立。dma_engine 和 weight_bank 各自内含 CDC，
+//   顶层只负责同步复位释放和 io-ready 指示；**没有任何数据在缺少这两类结构
+//   的情况下跨越时钟边界**。
+//
+//   复位：reset_n 是异步的，每个域各自把它移出三拍，让两侧的协议状态都在
+//   自己的时钟域内离开复位。BOOT 状态要等到 io-ready 指示在 core 域可见、
+//   并且 platform_isolated 已经置起——后者由平台保证"此前被接受的所有外部
+//   事务都真正结束"，否则会在边界上丢写。
+//
+//   顶层状态机：RESET(0)、BOOT(1)、IDLE(2)、RUN(3)、DRAIN(4)、FAULT(5)。
+//     - IDLE 允许写配置；
+//     - RUN 打开命令端口；
+//     - DRAIN 关闭命令端口，等待前端队列、调度器、所有引擎、scratchpad 和
+//       权重 bank 全部空闲；
+//     - FAULT 是粘滞的，只有协调复位才能清。
+//   已经排队的完成记录不构成"不能回到 IDLE"的理由——主机在 IDLE 里照样可以
+//   把它取走。
+//
+//   配置接口（doc 14 第 3 节）：已实现 VERSION、STATUS、CAPABILITY、WIDTHS、
+//   LIMITS、FATAL_INFO、COUNTER_SNAPSHOT、SNAPSHOT_STATUS、每个 buffer 的映射
+//   寄存器，以及 core 域计数器（core_cycles、cmd_accepted、cmd_committed、
+//   fault_count）。io 域计数器在快照邮箱做出来之前读 0；+0x18 的诊断字读 0，
+//   因为读写计数位于尚未导出这些计数的模块内部。
+//   映射寄存器只在 IDLE 接受写入；越界或非对齐访问整条拒绝、不修改任何东西；
+//   进入 RUN 要求映射通过重叠 / bank / 对齐检查。
+//
+//   SFU 能力是编译期参数。sfu/sfu 的 FP32 数据通路已经对照双精度参考验证过
+//   （tb_sfu_slice：EXP2 0.95、LOG2 0.50、RCP 1.36、RSQRT 1.52、SQRT 2.01、
+//   SIN 1.37、COS 1.17、TANH 3.05 ULP），所以四个 adapter subop（EXP2、RCP、
+//   RSQRT、SINCOS）和三种存储格式全部打开。清掉某一位仍然会以 UNSUPPORTED
+//   拒绝对应任务。
+//=============================================================================
 `timescale 1ns/1ps
 `default_nettype none
 

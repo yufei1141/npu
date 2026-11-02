@@ -190,6 +190,25 @@ module tb_command_frontend;
         mk_vector_add(16'h0006, 8'd5, 32'd0);
         send_check(`NPU_ST_BAD_FIELD, "zero count BAD_FIELD");
 
+        // scalar broadcast (subop bit 7) accepts an odd count: it reads
+        // src1[0] once, so there is no pairing to make even
+        mk_vector_add(16'h0008, 8'd0, 32'd5);
+        cmd_data[23:16] = 8'h82;               // MUL, scalar broadcast
+        send_check(`NPU_ST_OK, "scalar bcast odd count accepted");
+
+        mk_vector_add(16'h0009, 8'd1, 32'd16);
+        cmd_data[23:16] = 8'h82;
+        send_check(`NPU_ST_OK, "scalar bcast even count accepted");
+
+        // pair broadcast (subop bit 6) does need an even count
+        mk_vector_add(16'h000A, 8'd2, 32'd5);
+        cmd_data[23:16] = 8'h42;               // MUL, pair broadcast
+        send_check(`NPU_ST_BAD_FIELD, "pair bcast odd count BAD_FIELD");
+
+        mk_vector_add(16'h000B, 8'd3, 32'd16);
+        cmd_data[23:16] = 8'h42;
+        send_check(`NPU_ST_OK, "pair bcast even count accepted");
+
         // ------------------------------------------------------------
         // 4. accept_enable only gates enqueue
         // ------------------------------------------------------------
@@ -206,8 +225,8 @@ module tb_command_frontend;
         #1;
         chk(fifo_level === 32'd0, "fifo drained");
         chk(issue_valid === 1'b0, "issue_valid low when empty");
-        chk(accepted_count == 64'd7, "accepted_count should be 7");
-        chk(rejected_count == 64'd5, "rejected_count should be 5");
+        chk(accepted_count == 64'd11, "accepted_count should be 11");
+        chk(rejected_count == 64'd6, "rejected_count should be 6");
 
         if (errors == 0)
             $display("PASS: tb_command_frontend");

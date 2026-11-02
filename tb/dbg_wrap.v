@@ -141,7 +141,21 @@ module dbg_wrap #(
     output wire        p_clu_ynz,
     output wire [31:0] p_clu_y0,
     output wire [31:0] p_pe0_lo,
-    output wire [31:0] p_clu_acc0
+    output wire [31:0] p_clu_acc0,
+
+    // MPU adapter bookkeeping: the completion condition of M_FEED
+    output wire [31:0] p_mpu_aacc,
+    output wire [31:0] p_mpu_bacc,
+    output wire [31:0] p_mpu_trel,
+    output wire [31:0] p_mpu_rcap,
+    output wire        p_mpu_pdseen,
+    output wire        p_mpu_bfeed,
+    output wire [15:0] p_mpu_tile,
+    output wire [15:0] p_mpu_btcnt,
+    output wire        p_mpu_twait,
+    output wire [3:0]  p_pack_state,
+    output wire [15:0] p_pack_ttile,
+    output wire [15:0] p_pack_sstep
 );
 
     npu_top #(
@@ -235,6 +249,19 @@ module dbg_wrap #(
     assign p_core_b_lo  = u_dut.u_mpu.u_core.b_din[31:0];
     assign p_core_kk    = u_dut.u_mpu.u_core.kk;
     assign p_core_ocnt  = u_dut.u_mpu.u_core.ocnt;
+
+    assign p_mpu_aacc    = u_dut.u_mpu.a_accepted;
+    assign p_mpu_bacc    = u_dut.u_mpu.b_accepted;
+    assign p_mpu_trel    = u_dut.u_mpu.tiles_released;
+    assign p_mpu_rcap    = u_dut.u_mpu.results_captured;
+    assign p_mpu_pdseen  = u_dut.u_mpu.pack_done_seen;
+    assign p_mpu_bfeed   = u_dut.u_mpu.b_feed_done;
+    assign p_mpu_tile    = u_dut.u_mpu.t_r;
+    assign p_mpu_btcnt   = u_dut.u_mpu.b_tile_cnt;
+    assign p_mpu_twait   = u_dut.u_mpu.tile_waiting;
+    assign p_pack_state  = u_dut.u_mpu.u_pack.state;
+    assign p_pack_ttile  = u_dut.u_mpu.u_pack.t_r;
+    assign p_pack_sstep  = u_dut.u_mpu.u_pack.s_r;
 
     // ---- what gemv_cluster actually consumes / produces ----
     // a_head/b_head are the FIFO outputs; the earlier ca/cb probes watched the

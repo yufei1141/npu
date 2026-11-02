@@ -25,6 +25,41 @@
 //   admin_event/status/irq/action/target.  admin_cmd from the interface draft
 //   is not needed: this module already builds the complete 128-bit record.
 //=============================================================================
+//=============================================================================
+// 中文说明
+//
+//   调度器：**顺序发射**、依赖解析、buffer 锁、以及 admin 记录。这是整个
+//   加速器"异步提交、顺序执行"中"顺序执行"的那一半。
+//
+//   一次只持有一条命令，主路径状态：IDLE -> CHECK -> DEP -> RESERVE ->
+//   DISPATCH；另有 ADMIN / REJECT 支路处理 FENCE、EVENT_RELEASE 和错误记录。
+//   并发度是**两路**：一路计算任务 + 一路 DMA 任务可同时在飞（busy_c /
+//   busy_d 两个标志），各自持有一套 buffer 锁，在对应 job 的 retire 广播时
+//   释放。这也是为什么整条链路大约 444 周期/命令——不是带宽限制，而是单发射
+//   加上依赖等待。
+//
+//   各状态的判据：
+//     CHECK   用前端给的 issue_error 加上 access_decode 的 buffer 资源检查；
+//     DEP     等待 dep_job / dep_slot 指定的前置任务完成；
+//     RESERVE 等引擎空闲、等 buffer 锁、等事件槽，MATMUL 还要等权重 tile0
+//             描述符与当前选择匹配。**槽分配、锁获取、RESERVE->DISPATCH
+//             三者同沿完成**，中间没有半成功状态；
+//     DISPATCH 一直保持 task_valid 和锁存的命令，直到 task_ready。
+//
+//   拒绝语义（很容易搞错的一点）：
+//     - 身份错误（job_id 重复）和事件槽非法/被占用属于"**不占槽**的拒绝"——
+//       因为槽本来就被占着，再去分配只会破坏 WAIT 语义；
+//     - 其它静态错误，只要命令自己的槽合法且空闲，就先占上槽再在槽里报
+//       FAILED，这样主机仍然能从完成流里看到这条命令的结局。
+//
+//   FENCE 会等到 buffer 锁、引擎 busy、以及 memory 在途计数全部归零，然后
+//   根据 barrier_error 区间报 OK 或 DEP_FAILED。EVENT_RELEASE 直接走 ADMIN，
+//   由 completion_manager 负责校验目标并等待它完成。
+//
+//   admin 记录通过 completion_manager 的 ADMIN 源送出（admin_event/status/
+//   irq/action/target）；接口草案里的 admin_cmd 不需要，因为本模块已经直接
+//   拼好了完整的 128 位记录。
+//=============================================================================
 `timescale 1ns/1ps
 `default_nettype none
 
@@ -219,8 +254,14 @@ module task_scheduler #(
         (kind == K_VPU) ? vpu_task_ready :
         (kind == K_SFU) ? sfu_task_ready : 1'b0;
 
-    wire weight_ok  = (kind == K_MPU) ? weight_query_match : 1'b1;
-    wire weight_bad = (kind == K_MPU) && weight_query_fault;
+    // A MATMUL with src1_buf set takes its B operand from a w16 activation
+    // frame in a scratchpad buffer, not from a weight bank.  No tile is ever
+    // loaded for it, so the weight query can only answer "no match" and must
+    // not gate dispatch -- otherwise the job waits in S_RESERVE forever.
+    wire weight_need = (kind == K_MPU) && (cmd_r[79:72] == 8'd0);
+
+    wire weight_ok  = weight_need ? weight_query_match : 1'b1;
+    wire weight_bad = weight_need && weight_query_fault;
 
     // ------------------------------------------------------------------
     // dependency lookup

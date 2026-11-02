@@ -15,6 +15,29 @@
 //   past m_len stay zero.  A row-step spans at most two B-byte-aligned memory
 //   words, and the packer has at most one read in flight (client rule).
 //=============================================================================
+//=============================================================================
+// 中文说明
+//
+//   把 scratchpad 里的 A tile 打包成 gemv_stream 需要的 A beat（core 域）。
+//   实现依据 docs/npu_integration/08_mpu_engine.md 第 4 节。
+//
+//   为什么需要它：一个 A tile 会被**所有 N tile 重复使用**，而 tensorcore 的
+//   输入是按 (tile, step) 逐拍喂入的固定格式 beat。packer 的职责就是把这个
+//   二维切片按 tensorcore 的拍序展开，不做任何数值变换。
+//
+//   展开规则（M tile 有 1..4 行、K 是全归约长度）：
+//     W4  格式（mode[0]=0）：K_step = 16，元素 i 放在 a_data[256*m+16*i +: 16]
+//     W16 格式（mode[0]=1）：K_step =  4，元素 i 放在 a_data[256*m+16*i +: 16]
+//   即每个 (tile, step) 输出一个 1024 位 beat，里面按 m 分成 4 个 256 位的段，
+//   每段内按 K 元素顺序摆放 16 位元素。
+//
+//   地址计算：第 m 行第 j 个元素位于 A_base + m*A_row_stride + 2*(s*K_step+j)。
+//   只读有效 K 前缀覆盖的字节；K 尾部以及 m_len 之外的行保持为 0——这一点
+//   很关键，tensorcore 会把整拍都算进去，靠补零来保证不污染累加结果。
+//
+//   访存约束：一次行步进最多横跨两个按 B 字节对齐的存储字，且打包器最多只有
+//   一个读请求在途（memory_subsystem 的客户端规则决定的）。
+//=============================================================================
 `timescale 1ns/1ps
 `default_nettype none
 
@@ -134,25 +157,31 @@ module activation_packer #(
     assign mem_rsp_ready = (state == P_WAIT0) || (state == P_WAIT1);
 
     // ------------------------------------------------------------------
-    // gather: copy the k_eff elements out of the two words
+    // gather: build one 256-bit row from the two fetched words
     // ------------------------------------------------------------------
     // Byte-wise extraction: an element may straddle the two words, so each
     // byte picks its own word.  Byte indices then never exceed a word.
+    //
+    // This is combinational on purpose.  The first version wrote a_buf from
+    // its own clocked always block *and* from the FSM block (the clear in
+    // P_IDLE/P_HOLD), which is two drivers on one reg: Verilator needs
+    // -Wno-MULTIDRIVEN to stay quiet, and Vivado turns the variable part
+    // select into a duplicated register per bit and then reports
+    // "multi-driven net on pin din" for all 1024 bits.  Computing the row
+    // here and registering it inside the FSM block keeps a_buf single-driver.
     integer j;
     reg [6:0] bo;
     reg [7:0] b_lo, b_hi;
-    always @(posedge clk_core) begin
-        if (state == P_GATHER) begin
-            for (j = 0; j < 16; j = j + 1) begin
-                bo = byte_off + 2*j;
-                b_lo = (bo < 7'd32) ? w0_r[8*bo +: 8] : w1_r[8*(bo - 7'd32) +: 8];
-                b_hi = (bo + 7'd1 < 7'd32) ? w0_r[8*(bo + 7'd1) +: 8]
-                                           : w1_r[8*(bo + 7'd1 - 7'd32) +: 8];
-                if (j < k_eff)
-                    a_buf[256*m_r + 16*j +: 16] <= {b_hi, b_lo};
-                else
-                    a_buf[256*m_r + 16*j +: 16] <= 16'd0;
-            end
+    reg [255:0] row_c;
+    always @* begin
+        row_c = 256'd0;
+        for (j = 0; j < 16; j = j + 1) begin
+            bo = byte_off + 2*j;
+            b_lo = (bo < 7'd32) ? w0_r[8*bo +: 8] : w1_r[8*(bo - 7'd32) +: 8];
+            b_hi = (bo + 7'd1 < 7'd32) ? w0_r[8*(bo + 7'd1) +: 8]
+                                       : w1_r[8*(bo + 7'd1 - 7'd32) +: 8];
+            if (j < k_eff)
+                row_c[16*j +: 16] = {b_hi, b_lo};
         end
     end
 
@@ -187,7 +216,13 @@ module activation_packer #(
             m_r      <= 16'd0;
             w0_r     <= 256'd0;
             w1_r     <= 256'd0;
-            a_buf    <= 1024'd0;
+            // a_buf is deliberately absent from the reset branch.  A reset
+            // assignment on the wide array becomes a constant driver on the
+            // flop outputs, which Vivado resolves by keeping the constant:
+            // an earlier build tied a_buf_reg[1023:974] to GND.  Every bit
+            // is cleared on cfg (P_IDLE), after each beat (P_HOLD) and
+            // written before a_valid rises (P_GATHER), so no stale data can
+            // reach a beat.
             done_r   <= 1'b0;
             error_r  <= `NPU_ST_OK;
         end else begin
@@ -251,6 +286,13 @@ module activation_packer #(
                 end
             end
             P_GATHER: begin
+                // register the row built by row_c; m_r only reaches 3
+                case (m_r[1:0])
+                    2'd0: a_buf[255:0]    <= row_c;
+                    2'd1: a_buf[511:256]  <= row_c;
+                    2'd2: a_buf[767:512]  <= row_c;
+                    default: a_buf[1023:768] <= row_c;
+                endcase
                 if (m_r + 16'd1 < {13'd0, m_len}) begin
                     m_r   <= m_r + 16'd1;
                     state <= P_SETUP;

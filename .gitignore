@@ -8,3 +8,8 @@ downloads/qwen3-0.6b-bf16/
 # python
 __pycache__/
 *.pyc
+
+# Vivado scratch and JVM crash dumps (synth/impl runs write their reports and
+# checkpoints under build/, which is ignored above)
+.Xil/
+hs_err_pid*

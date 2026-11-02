@@ -202,7 +202,10 @@ class Qwen3:
         emb = np.concatenate([f, f], axis=-1)
         return np.cos(emb).astype(np.float32), np.sin(emb).astype(np.float32)
 
-    def forward(self, ids, dump=None):
+    def forward(self, ids, dump=None, start=0, x_start=None):
+        """the whole network, or from `start` with `x_start` [T, H] as its
+        input -- used to check a layer that is fed another layer's output
+        without re-deriving the reference by hand."""
         c = self.cfg
         T = len(ids)
         x = self.embed[ids].astype(np.float32)              # [T, H]
@@ -212,6 +215,10 @@ class Qwen3:
         dump_data = {}
 
         for li, L in enumerate(self.L):
+            if li < start:
+                continue
+            if li == start and x_start is not None:
+                x = np.asarray(x_start, dtype=np.float32)
             x_in = x
             h = rmsnorm(x, L["ln1"].astype(np.float32), self.eps)
             h1 = h
@@ -236,6 +243,7 @@ class Qwen3:
             o_out = o @ L["wo"]
             x = x + o_out
 
+            x_mid = x                                   # MLP block input
             h = rmsnorm(x, L["ln2"].astype(np.float32), self.eps)
             h2 = h
             g = h @ L["wg"]
@@ -250,6 +258,7 @@ class Qwen3:
                 dump_data = {"x_in": x_in, "h1": h1, "q": q_out,
                              "k": k_out, "v": v_out,
                              "o_in": o, "o": o_out,
+                             "x_mid": x_mid,                     # MLP input
                              "h2": h2, "g": g, "u": u, "mlp_a": a,
                              "down": down_out, "x": x}
         hf = rmsnorm(x, self.final.astype(np.float32), self.eps)
